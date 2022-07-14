@@ -4,6 +4,8 @@
 // also because i want to get better at rust cuz i lowkey suck at it :/
 
 #![feature(const_option)] // why does this need to be here if it gives me a warning??? 🤔
+#![feature(unchecked_math)]
+#![feature(const_inherent_unchecked_arith)]
 
 // TODO: i have no clue how to do this correctly
 include!("constants.rs");
@@ -14,112 +16,107 @@ include!("constants.rs");
 // UPDATE: my cpu doesnt have avx 512 so this idea dont rlly work (at least easily)
 // update 2: it seems compacting the result into a single byte by 
 //           using base 3 doesnt really have any effect on speed
-pub const fn get_clues(guess: WordleWord, answer: WordleWord) -> WordleClue {
+// UPDATE 3: i made this faster but also it looks even shittier now lmao
+pub const fn get_clues(guess: [u8;5], answer: [u8;5]) -> u8 {
 	debug_assert!(guess[0]!=0&&guess[1]!=0&&guess[2]!=0&&guess[3]!=0&&guess[4]!=0);
     debug_assert!(answer[0]!=0&&answer[1]!=0&&answer[2]!=0&&answer[3]!=0&&answer[4]!=0);
 	
-    let mut guess = guess;
-    let mut answer = answer;
-    
-    let mut result: WordleClue = 0;
+    let mut g: u8 = 0;
+	let mut y: u8 = 0;
 	
-	//  81 27  9  3  1
-	// 162 54 18  6  2
+	// this ingenius idea was shamelessly stolen from https://www.youtube.com/watch?v=doFowk4xj7Q
+	// this reduces it from O(n^2) to O(n) lmao i guess leetcode actually does have some practical applications
+	let mut misplaced_letters: [u8; 26] = [0u8; (b'Z' - b'A' + 1) as usize];
 	
-	if guess[0] == answer[0] {
-		result += 162;
-		guess[0] = 0;
-		answer[0] = 0;
-	}
-	if guess[1] == answer[1] {
-		result += 54;
-		guess[1] = 0;
-		answer[1] = 0;
-	}
-	if guess[2] == answer[2] {
-		result += 18;
-		guess[2] = 0;
-		answer[2] = 0;
-	}
-	if guess[3] == answer[3] {
-		result += 6;
-		guess[3] = 0;
-		answer[3] = 0;
-	}
-	if guess[4] == answer[4] {
-		result += 2;
-		guess[4] = 0;
-		answer[4] = 0;
-	}
-    
-    if guess[0] != 0 {
-        let mut i = 5;
-		
-		// NOTE: these all get optimized into single cmov instructions :D
-        if guess[0]==answer[4] {i = 4}
-        if guess[0]==answer[3] {i = 3}
-        if guess[0]==answer[2] {i = 2}
-        if guess[0]==answer[1] {i = 1}
-        
-		if i != 5 {
-			result += 81;
-			answer[i] = 0;
-		}
-    }
-    if guess[1] != 0 {
-        let mut i = 5;
+    // TODO: after writing this horrible monstrosity, i realized there is a 
+    //       Wrapping trait - so uhh rewrite this to use that instead
 
-        if guess[1]==answer[4] {i = 4}
-        if guess[1]==answer[3] {i = 3}
-        if guess[1]==answer[2] {i = 2}
-        if guess[1]==answer[0] {i = 0}
-        
-        if i != 5 {
-			result += 27;
-			answer[i] = 0;
-		}
-    }
-    if guess[2] != 0 {
-        let mut i = 5;
-
-        if guess[2]==answer[4] {i = 4}
-        if guess[2]==answer[3] {i = 3}
-        if guess[2]==answer[1] {i = 1}
-        if guess[2]==answer[0] {i = 0}
-        
-        if i != 5 {
-			result += 9;
-			answer[i] = 0;
-		}
-    }
-    if guess[3] != 0 {
-        let mut i = 5;
-
-        if guess[3]==answer[4] {i = 4}
-        if guess[3]==answer[2] {i = 2}
-        if guess[3]==answer[1] {i = 1}
-        if guess[3]==answer[0] {i = 0}
-        
-        if i != 5 {
-			result += 3;
-			answer[i] = 0;
-		}
-    }
-    if guess[4] != 0 {
-        let mut i = 5;
-
-        if guess[4]==answer[3] {i = 3}
-        if guess[4]==answer[2] {i = 2}
-        if guess[4]==answer[1] {i = 1}
-        if guess[4]==answer[0] {i = 0}
-        
-		if i != 5 {
-			result += 1;
-			// answer[i] = 0;
-		}
+	// Find all correct letters
+    // i hate rust overflow checking
+    // like dumb stupid rust compiler, this isnt gonna overflow
+    // stop doing 10000 unnecessary branches every time i want to increment a value
+    unsafe {
+        // SAFETY: this is not ever gonna overflow, even if literally every 
+        //         single number gets added, it sums to 242 and doesnt go higher after
+        if guess[0] == answer[0] {
+            g = g.unchecked_add(162);
+        } else {
+            let letter = answer[0].unchecked_sub(b'A') as usize;
+            misplaced_letters[letter] = misplaced_letters[letter].unchecked_add(1);
+        }
+        if guess[1] == answer[1] {
+            g = g.unchecked_add(54);
+        } else {
+            let letter = answer[1].unchecked_sub(b'A') as usize;
+            misplaced_letters[letter] = misplaced_letters[letter].unchecked_add(1);
+        }
+        if guess[2] == answer[2] {
+            g = g.unchecked_add(18);
+        } else {
+            let letter = answer[2].unchecked_sub(b'A') as usize;
+            misplaced_letters[letter] = misplaced_letters[letter].unchecked_add(1);
+        }
+        if guess[3] == answer[3] {
+            g = g.unchecked_add(6);
+        } else {
+            let letter = answer[3].unchecked_sub(b'A') as usize;
+            misplaced_letters[letter] = misplaced_letters[letter].unchecked_add(1);
+        }
+        if guess[4] == answer[4] {
+            g = g.unchecked_add(2);
+        } else {
+            let letter = answer[4].unchecked_sub(b'A') as usize;
+            misplaced_letters[letter] = misplaced_letters[letter].unchecked_add(1);
+        }
     }
 	
-	result
+	// Find all correct letters in the wrong place
+    // SAFETY: see above
+	unsafe {
+        let mut g_temp = g;
+        
+        let i = guess[0].unchecked_sub(b'A') as usize;
+        if g_temp < 162 && misplaced_letters[i] > 0 {
+            misplaced_letters[i] = misplaced_letters[i].unchecked_sub(1);
+            y = y.unchecked_add(81);
+        }
+        if g_temp >= 162 {g_temp = g_temp.unchecked_sub(162);}
+
+        let i = guess[1].unchecked_sub(b'A') as usize;
+        if g_temp < 54 && misplaced_letters[i] > 0 {
+            misplaced_letters[i] = misplaced_letters[i].unchecked_sub(1);
+            y = y.unchecked_add(27);
+        }
+        if g_temp >= 54 {
+            g_temp = g_temp.unchecked_sub(54);
+        }
+
+        let i = guess[2].unchecked_sub(b'A') as usize;
+        if g_temp < 18 && misplaced_letters[i] > 0 {
+            misplaced_letters[i] = misplaced_letters[i].unchecked_sub(1);
+            y = y.unchecked_add(9);
+        }
+        if g_temp >= 18 {
+            g_temp = g_temp.unchecked_sub(18);
+        }
+
+        let i = guess[3].unchecked_sub(b'A') as usize;
+        if g_temp < 6 && misplaced_letters[i] > 0 {
+            misplaced_letters[i] = misplaced_letters[i].unchecked_sub(1);
+            y = y.unchecked_add(3);
+        }
+        if g_temp >= 6 {
+            g_temp = g_temp.unchecked_sub(6);
+        }
+
+        let i = guess[4].unchecked_sub(b'A') as usize;
+        if g_temp < 2 && misplaced_letters[i] > 0 {
+            misplaced_letters[i] = misplaced_letters[i].unchecked_sub(1);
+            y = y.unchecked_add(1);
+        }
+    }
+	
+	g + y // since these have disjoint digits in base 3, we can add them together
 }
 
 
@@ -643,7 +640,7 @@ mod tests {
 	
     #[test]
 	fn test_clues() {
-		let mut dist: [i32; 256] = [0; 256];
+		let mut dist = [0; 243];
 		
 		for a in WORDLE_ANSWERS {
 			for g in WORDLE_VALID_WORDS {
@@ -652,7 +649,7 @@ mod tests {
 		}
 		
 		// now THIS is what i call a test.
-		assert_eq!(dist, [6694602,1816948,734049,1828604,471396,126405,721800,145608,128206,1854852,388353,132025,478211,87053,20893,139385,21436,13077,651495,142036,71960,139441,24709,9586,80925,11165,19390,2249147,512417,152649,506143,102328,22593,139363,23615,14112,614704,99892,27131,121224,15712,2882,25335,2854,1456,132945,23375,7543,24474,3176,994,8090,979,566,1097968,198355,111762,172723,30512,8652,102784,11675,19838,187575,27218,9868,28590,3567,694,12321,1197,1005,128703,16446,13427,12898,1482,603,15115,775,4594,1420187,337945,118788,337301,65318,17386,113273,18831,12440,304654,50919,16812,62212,7496,1958,15775,1646,915,95588,18144,7797,16559,2057,881,6837,850,545,437564,81728,22416,79707,10993,2390,18600,2497,1411,87202,10116,2721,12749,809,177,2173,148,51,16525,2393,613,2130,174,22,547,46,30,163341,22990,10901,20193,2292,691,11389,966,1000,22126,2031,905,2250,129,15,1093,46,62,11296,1031,685,963,34,44,725,41,0,616362,103814,62552,132770,21401,7080,59481,6297,10282,126729,16828,7062,24674,2710,739,7600,706,493,69445,7620,7276,9904,762,468,7946,401,1917,157029,20607,8555,27045,2952,866,7656,544,566,31691,2645,1097,4284,281,45,984,34,54,10527,825,401,1184,32,46,523,40,0,125767,15016,12442,14714,1935,486,11063,638,2301,14070,1334,437,1837,113,46,645,41,0,20647,1362,2142,1126,83,0,2682,0,2310,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+		assert_eq!(dist, [6694602,1816948,734049,1828604,471396,126405,721800,145608,128206,1854852,388353,132025,478211,87053,20893,139385,21436,13077,651495,142036,71960,139441,24709,9586,80925,11165,19390,2249147,512417,152649,506143,102328,22593,139363,23615,14112,614704,99892,27131,121224,15712,2882,25335,2854,1456,132945,23375,7543,24474,3176,994,8090,979,566,1097968,198355,111762,172723,30512,8652,102784,11675,19838,187575,27218,9868,28590,3567,694,12321,1197,1005,128703,16446,13427,12898,1482,603,15115,775,4594,1420187,337945,118788,337301,65318,17386,113273,18831,12440,304654,50919,16812,62212,7496,1958,15775,1646,915,95588,18144,7797,16559,2057,881,6837,850,545,437564,81728,22416,79707,10993,2390,18600,2497,1411,87202,10116,2721,12749,809,177,2173,148,51,16525,2393,613,2130,174,22,547,46,30,163341,22990,10901,20193,2292,691,11389,966,1000,22126,2031,905,2250,129,15,1093,46,62,11296,1031,685,963,34,44,725,41,0,616362,103814,62552,132770,21401,7080,59481,6297,10282,126729,16828,7062,24674,2710,739,7600,706,493,69445,7620,7276,9904,762,468,7946,401,1917,157029,20607,8555,27045,2952,866,7656,544,566,31691,2645,1097,4284,281,45,984,34,54,10527,825,401,1184,32,46,523,40,0,125767,15016,12442,14714,1935,486,11063,638,2301,14070,1334,437,1837,113,46,645,41,0,20647,1362,2142,1126,83,0,2682,0,2310]);
 	}
 	
 	#[test]

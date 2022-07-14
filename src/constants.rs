@@ -1,4 +1,4 @@
-pub const WORDLE_NUM_GUESSES: usize = 6;
+pub const WORDLE_NUM_GUESSES: usize = 12; // for testing porpoises 🐬
 
 pub type WordleWord = [u8; 5];
 pub type WordleAnswer = [u8; 5];
