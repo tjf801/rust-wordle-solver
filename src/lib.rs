@@ -632,10 +632,10 @@ mod tests {
 	fn test_clue_repeated_letters() {
 		// stolen from 3blue1brown's wordle correction video because theyre good test cases for this behavior
 		// see first ~60 seconds of https://www.youtube.com/watch?v=fRed0Xmc2Wg
-		assert_eq!(get_clues(*b"SPEED", *b"ABIDE"), 10); // 0t00101
-		assert_eq!(get_clues(*b"SPEED", *b"ERASE"), 93); // 0t10110
-		assert_eq!(get_clues(*b"SPEED", *b"STEAL"), 180); // 0t20200
-		assert_eq!(get_clues(*b"SPEED", *b"CREPE"), 48); // 0t01210
+		assert_eq!(get_clues(*b"SPEED", *b"ABIDE"), clues!(_ _ Y _ Y));
+		assert_eq!(get_clues(*b"SPEED", *b"ERASE"), clues!(Y _ Y Y _));
+		assert_eq!(get_clues(*b"SPEED", *b"STEAL"), clues!(G _ G _ _));
+		assert_eq!(get_clues(*b"SPEED", *b"CREPE"), clues!(_ Y G Y _));
 	}
 	
     #[test]
@@ -657,15 +657,15 @@ mod tests {
 	fn test_wordlestate_appending() {
 		let mut x = WordleState::default();
 		
-		x.push_entry(WordleEntry{guess: *b"AROSE", clue: 138}); // 0t12010
-		assert_eq!(x[0], WordleEntry{guess: *b"AROSE", clue: 138});
+		x.push_entry(WordleEntry{guess: *b"AROSE", clue: clues!(Y G _ Y _)}); // 0t12010
+		assert_eq!(x[0], WordleEntry{guess: *b"AROSE", clue: clues!(Y G _ Y _)});
 		
-		x.push_entry(WordleEntry{guess: *b"PATCH", clue: 36});  // 0t01100
-		x.push_entry(WordleEntry{guess: *b"JELLY", clue: 0});   // 0t00000
-		x.push_entry(WordleEntry{guess: *b"SOWLS", clue: 1});   // 0t00001
-		x.push_entry(WordleEntry{guess: *b"BRISE", clue: 57});  // 0t02010
-		x.push_entry(WordleEntry{guess: *b"FINAL", clue: 12});  // 0t00110
-		x.push_entry(WordleEntry{guess: *b"PANIC", clue: 36});  // 0t01100
+		x.push_entry(WordleEntry{guess: *b"PATCH", clue: clues!(_ Y Y _ _)});  // 0t01100
+		x.push_entry(WordleEntry{guess: *b"JELLY", clue: clues!(_ _ _ _ _)});  // 0t00000
+		x.push_entry(WordleEntry{guess: *b"SOWLS", clue: clues!(_ _ _ _ Y)});  // 0t00001
+		x.push_entry(WordleEntry{guess: *b"BRISE", clue: clues!(_ G _ Y _)});  // 0t02010
+		x.push_entry(WordleEntry{guess: *b"FINAL", clue: clues!(_ _ Y Y _)});  // 0t00110
+		x.push_entry(WordleEntry{guess: *b"PANIC", clue: clues!(_ Y Y _ _)});  // 0t01100
 	}
 	
 	#[test]
@@ -727,7 +727,7 @@ mod tests {
 		// i have literally only tested this with a modified version that filters only 
 		// possible answers and even THAT takes ~10 seconds, so slowing it down by a 
 		// factor of 10^2 (and 1 / the % of filtered words) takes too long and i rlly 
-		// cant be bothered to wait ~10-20 HOURS (idk exact time) for it to finish
+		// cant be bothered to wait ~24 HOURS (idk exact time) for it to finish
 		let mut s = WordleState::default();
 		
 		let (e, w) = s.get_min_worst_entropy_word_depth(2, u16::MIN, u16::MAX).unwrap();
