@@ -3,6 +3,7 @@
 // but there have been way fewer segfaults and annoying stuff like that)
 // also because i want to get better at rust cuz i lowkey suck at it :/
 
+#![feature(const_option)] // why does this need to be here if it gives me a warning??? 🤔
 
 // TODO: i have no clue how to do this correctly
 include!("constants.rs");
@@ -13,7 +14,7 @@ include!("constants.rs");
 // UPDATE: my cpu doesnt have avx 512 so this idea dont rlly work (at least easily)
 // update 2: it seems compacting the result into a single byte by 
 //           using base 3 doesnt really have any effect on speed
-pub fn get_clues(guess: WordleWord, answer: WordleWord) -> WordleClue {
+pub const fn get_clues(guess: WordleWord, answer: WordleWord) -> WordleClue {
 	debug_assert!(guess[0]!=0&&guess[1]!=0&&guess[2]!=0&&guess[3]!=0&&guess[4]!=0);
     debug_assert!(answer[0]!=0&&answer[1]!=0&&answer[2]!=0&&answer[3]!=0&&answer[4]!=0);
 	
@@ -130,7 +131,33 @@ pub struct WordleState {
 
 impl WordleState {
 	pub fn new() -> WordleState {
-		WordleState::default()
+		WordleState {
+			current_entry: 0,
+			entries: [None; WORDLE_NUM_GUESSES]
+		}
+	}
+	
+	pub const fn get_entry(&self, index: usize) -> Option<&WordleEntry> {
+		assert!(index < WORDLE_NUM_GUESSES);
+		
+		self.entries[index].as_ref()
+	}
+	pub fn get_entry_mut(&mut self, index: usize) -> Option<&mut WordleEntry> {
+		assert!(index < WORDLE_NUM_GUESSES);
+		
+		self.entries[index].as_mut()
+	}
+	
+	pub const fn is_solved(&self) -> bool {
+		if self.current_entry == 0 {
+			false
+		} else {
+			self.get_entry(self.current_entry-1).unwrap().clue == 242
+		}
+	}
+	
+	pub const fn is_lost(&self) -> bool {
+		self.current_entry >= WORDLE_NUM_GUESSES
 	}
 	
 	pub fn push_entry(&mut self, entry: WordleEntry) {
@@ -151,21 +178,10 @@ impl WordleState {
 		self.entries[self.current_entry].take()
 	}
 	
-	pub fn get_wordle_entry(&self, index: usize) -> Option<&WordleEntry> {
-		assert!(index < WORDLE_NUM_GUESSES);
-		
-		self.entries[index].as_ref()
-	}
-	pub fn get_wordle_entry_mut(&mut self, index: usize) -> Option<&mut WordleEntry> {
-		assert!(index < WORDLE_NUM_GUESSES);
-		
-		self.entries[index].as_mut()
-	}
-	
 	pub fn is_possible_answer(&self, possible_answer: WordleAnswer) -> bool {
 		if self.current_entry == 0 {return true}
-		for guess in self {
-			if get_clues(guess.word, possible_answer) != guess.clue {
+		for entry in self {
+			if get_clues(entry.guess, possible_answer) != entry.clue {
 				return false;
 			}
 		}
@@ -175,6 +191,10 @@ impl WordleState {
 	pub fn is_possible_hardmode_word(&self, possible_word: WordleWord) -> bool {
 		todo!("is_possible_hardmode_word({})", String::from_utf8_lossy(&possible_word));
 	}
+	
+	pub fn emoji_grid(&self) -> String {
+		todo!("emoji_grid()")
+	}
 }
 
 impl std::ops::Index<usize> for WordleState {
@@ -183,7 +203,7 @@ impl std::ops::Index<usize> for WordleState {
 	fn index(&self, index: usize) -> &WordleEntry {
 		assert!(index < self.current_entry);
 		
-		self.get_wordle_entry(index).unwrap()
+		self.get_entry(index).unwrap()
 	}
 }
 
@@ -330,7 +350,7 @@ impl WordleState {
 		for (pattern, &px) in dist.iter().enumerate() {
 			if px == 0 {continue;}
 			
-			s.push_entry(WordleEntry {word: word, clue: pattern as WordleClue});
+			s.push_entry(WordleEntry {guess: word, clue: pattern as WordleClue});
 			
 			let mut max_entropy: f32 = 0.0;
 			for word in WORDLE_VALID_WORDS {
@@ -561,7 +581,7 @@ impl WordleState {
 				// for each child node
 				for i in 0..NUM_WORDLE_CLUES {
 					if possible_clues[i] {
-						self.push_entry(WordleEntry {word: guess, clue: i as u8});
+						self.push_entry(WordleEntry {guess: guess, clue: i as u8});
 						let result = self.get_min_worst_entropy_word_depth(depth-1, alpha, beta);
 						self.pop_entry();
 						
@@ -640,22 +660,22 @@ mod tests {
 	fn test_wordlestate_appending() {
 		let mut x = WordleState::default();
 		
-		x.push_entry(WordleEntry{word: *b"AROSE", clue: 138}); // 0t12010
-		assert_eq!(x[0], WordleEntry{word: *b"AROSE", clue: 138});
+		x.push_entry(WordleEntry{guess: *b"AROSE", clue: 138}); // 0t12010
+		assert_eq!(x[0], WordleEntry{guess: *b"AROSE", clue: 138});
 		
-		x.push_entry(WordleEntry{word: *b"PATCH", clue: 36});  // 0t01100
-		x.push_entry(WordleEntry{word: *b"JELLY", clue: 0});   // 0t00000
-		x.push_entry(WordleEntry{word: *b"SOWLS", clue: 1});   // 0t00001
-		x.push_entry(WordleEntry{word: *b"BRISE", clue: 57});  // 0t02010
-		x.push_entry(WordleEntry{word: *b"FINAL", clue: 12});  // 0t00110
-		x.push_entry(WordleEntry{word: *b"PANIC", clue: 36});  // 0t01100
+		x.push_entry(WordleEntry{guess: *b"PATCH", clue: 36});  // 0t01100
+		x.push_entry(WordleEntry{guess: *b"JELLY", clue: 0});   // 0t00000
+		x.push_entry(WordleEntry{guess: *b"SOWLS", clue: 1});   // 0t00001
+		x.push_entry(WordleEntry{guess: *b"BRISE", clue: 57});  // 0t02010
+		x.push_entry(WordleEntry{guess: *b"FINAL", clue: 12});  // 0t00110
+		x.push_entry(WordleEntry{guess: *b"PANIC", clue: 36});  // 0t01100
 	}
 	
 	#[test]
 	fn test_possible_answers() {
 		let mut x = WordleState::default();
 		
-		x.push_entry(WordleEntry{word: *b"AROSE", clue: 0});
+		x.push_entry(WordleEntry{guess: *b"AROSE", clue: 0});
 		
 		assert_eq!(WORDLE_ANSWERS.iter().filter(|&a| x.is_possible_answer(*a)).count(), 182);
 	}
@@ -710,7 +730,7 @@ mod tests {
 		// i have literally only tested this with a modified version that filters only 
 		// possible answers and even THAT takes ~10 seconds, so slowing it down by a 
 		// factor of 10^2 (and 1 / the % of filtered words) takes too long and i rlly 
-		// cant be bothered to wait ~2-4 HOURS (idk exact time) for it to finish
+		// cant be bothered to wait ~10-20 HOURS (idk exact time) for it to finish
 		let mut s = WordleState::default();
 		
 		let (e, w) = s.get_min_worst_entropy_word_depth(2, u16::MIN, u16::MAX).unwrap();

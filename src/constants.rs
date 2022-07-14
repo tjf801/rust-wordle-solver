@@ -8,7 +8,7 @@ pub const NUM_WORDLE_CLUES: usize = (WordleClue::MAX as usize)+1;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WordleEntry {
-	pub word: WordleWord, 
+	pub guess: WordleWord, 
 	pub clue: WordleClue
 }
 
