@@ -1,18 +1,72 @@
-pub const WORDLE_NUM_GUESSES: usize = 12; // for testing porpoises 🐬
+pub const WORDLE_NUM_GUESSES: usize = 6; // for testing porpoises 🐬
 
+// #[rustc_layout_scalar_valid_range_start(b'A')]
+// #[rustc_layout_scalar_valid_range_end(b'Z')]
+// #[rustc_nonnull_optimization_guaranteed]
 pub type WordleWord = [u8; 5];
 pub type WordleAnswer = [u8; 5];
 
-pub type WordleClue = u8;
-pub const NUM_WORDLE_CLUES: usize = (WordleClue::MAX as usize)+1;
-
-#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WordleEntry {
-	pub guess: WordleWord, 
-	pub clue: WordleClue
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WordleWordScore {
+	pub max_worst_case: u16,
+	pub clue_dist_sum: u16
 }
 
-pub const NUM_WORDLE_ANSWERS: usize = 2310;
+impl WordleWordScore {
+	pub const MIN: Self = Self {max_worst_case: u16::MAX, clue_dist_sum: 0};
+	pub const MAX: Self = Self {max_worst_case: u16::MIN, clue_dist_sum: u16::MAX};
+}
+
+impl Default for WordleWordScore {
+	fn default() -> Self {
+		Self::MIN
+	}
+}
+
+impl PartialOrd for WordleWordScore {
+	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Ord for WordleWordScore {
+	// isomorphic to the surreal numbers! nice
+	fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+		match self.max_worst_case.cmp(&other.max_worst_case) {
+			std::cmp::Ordering::Equal => self.clue_dist_sum.cmp(&other.clue_dist_sum),
+			x => x
+		}
+	}
+}
+
+
+pub const NUM_WORDLE_CLUES: usize = 243;
+
+
+#[rustc_layout_scalar_valid_range_end(242)]
+#[rustc_nonnull_optimization_guaranteed]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)] // TODO: why is Eq not const :/
+pub struct WordleClue(u8);
+
+impl WordleClue {
+	pub const fn new(value: u8) -> Self {
+		if 243 <= value {panic!("WordleClue::new value is too large")}
+		unsafe { WordleClue(value) }
+	}
+	pub const fn as_usize(self) -> usize {
+		self.0 as usize
+	}
+}
+
+impl Default for WordleClue {
+	fn default() -> Self {
+		WordleClue::new(0)
+	}
+}
+
+
+
+pub const NUM_WORDLE_ANSWERS: usize = 2309;
 
 // this is kinda gross lol
 pub const WORDLE_ANSWERS: [WordleAnswer; NUM_WORDLE_ANSWERS] = [
@@ -66,219 +120,249 @@ pub const WORDLE_ANSWERS: [WordleAnswer; NUM_WORDLE_ANSWERS] = [
 	*b"CHIRP", *b"CHOCK", *b"CHOIR", *b"CHOKE", *b"CHORD", *b"CHORE", *b"CHOSE", *b"CHUCK", 
 	*b"CHUMP", *b"CHUNK", *b"CHURN", *b"CHUTE", *b"CIDER", *b"CIGAR", *b"CINCH", *b"CIRCA", 
 	*b"CIVIC", *b"CIVIL", *b"CLACK", *b"CLAIM", *b"CLAMP", *b"CLANG", *b"CLANK", *b"CLASH", 
-	*b"CLASP", *b"CLASS", *b"CLEAN", *b"CLEAR", *b"CLEAT", *b"CLEFT", *b"CLERK", *b"CLICK", *b"CLIFF", 
-	*b"CLIMB", *b"CLING", *b"CLINK", *b"CLOAK", *b"CLOCK", *b"CLONE", *b"CLOSE", *b"CLOTH", *b"CLOUD", 
-	*b"CLOUT", *b"CLOVE", *b"CLOWN", *b"CLUCK", *b"CLUED", *b"CLUMP", *b"CLUNG", *b"COACH", *b"COAST", 
-	*b"COBRA", *b"COCOA", *b"COLON", *b"COLOR", *b"COMET", *b"COMFY", *b"COMIC", *b"COMMA", *b"CONCH", 
-	*b"CONDO", *b"CONIC", *b"COPSE", *b"CORAL", *b"CORER", *b"CORNY", *b"COUCH", *b"COUGH", *b"COULD", 
-	*b"COUNT", *b"COUPE", *b"COURT", *b"COVEN", *b"COVER", *b"COVET", *b"COVEY", *b"COWER", *b"COYLY", 
-	*b"CRACK", *b"CRAFT", *b"CRAMP", *b"CRANE", *b"CRANK", *b"CRASH", *b"CRASS", *b"CRATE", *b"CRAVE", 
-	*b"CRAWL", *b"CRAZE", *b"CRAZY", *b"CREAK", *b"CREAM", *b"CREDO", *b"CREED", *b"CREEK", *b"CREEP", 
-	*b"CREME", *b"CREPE", *b"CREPT", *b"CRESS", *b"CREST", *b"CRICK", *b"CRIED", *b"CRIER", *b"CRIME", 
-	*b"CRIMP", *b"CRISP", *b"CROAK", *b"CROCK", *b"CRONE", *b"CRONY", *b"CROOK", *b"CROSS", *b"CROUP", 
-	*b"CROWD", *b"CROWN", *b"CRUDE", *b"CRUEL", *b"CRUMB", *b"CRUMP", *b"CRUSH", *b"CRUST", *b"CRYPT", 
-	*b"CUBIC", *b"CUMIN", *b"CURIO", *b"CURLY", *b"CURRY", *b"CURSE", *b"CURVE", *b"CURVY", *b"CUTIE", 
-	*b"CYBER", *b"CYCLE", *b"CYNIC", *b"DADDY", *b"DAILY", *b"DAIRY", *b"DAISY", *b"DALLY", *b"DANCE", 
-	*b"DANDY", *b"DATUM", *b"DAUNT", *b"DEALT", *b"DEATH", *b"DEBAR", *b"DEBIT", *b"DEBUG", *b"DEBUT", 
-	*b"DECAL", *b"DECAY", *b"DECOR", *b"DECOY", *b"DECRY", *b"DEFER", *b"DEIGN", *b"DEITY", *b"DELAY", 
-	*b"DELTA", *b"DELVE", *b"DEMON", *b"DEMUR", *b"DENIM", *b"DENSE", *b"DEPOT", *b"DEPTH", *b"DERBY", 
-	*b"DETER", *b"DETOX", *b"DEUCE", *b"DEVIL", *b"DIARY", *b"DICEY", *b"DIGIT", *b"DILLY", *b"DIMLY", 
-	*b"DINER", *b"DINGO", *b"DINGY", *b"DIODE", *b"DIRGE", *b"DIRTY", *b"DISCO", *b"DITCH", *b"DITTO", 
-	*b"DITTY", *b"DIVER", *b"DIZZY", *b"DODGE", *b"DODGY", *b"DOGMA", *b"DOING", *b"DOLLY", *b"DONOR", 
-	*b"DONUT", *b"DOPEY", *b"DOUBT", *b"DOUGH", *b"DOWDY", *b"DOWEL", *b"DOWNY", *b"DOWRY", *b"DOZEN", 
-	*b"DRAFT", *b"DRAIN", *b"DRAKE", *b"DRAMA", *b"DRANK", *b"DRAPE", *b"DRAWL", *b"DRAWN", *b"DREAD", 
-	*b"DREAM", *b"DRESS", *b"DRIED", *b"DRIER", *b"DRIFT", *b"DRILL", *b"DRINK", *b"DRIVE", *b"DROIT", 
-	*b"DROLL", *b"DRONE", *b"DROOL", *b"DROOP", *b"DROSS", *b"DROVE", *b"DROWN", *b"DRUID", *b"DRUNK", 
-	*b"DRYER", *b"DRYLY", *b"DUCHY", *b"DULLY", *b"DUMMY", *b"DUMPY", *b"DUNCE", *b"DUSKY", *b"DUSTY", 
-	*b"DUTCH", *b"DUVET", *b"DWARF", *b"DWELL", *b"DWELT", *b"DYING", *b"EAGER", *b"EAGLE", *b"EARLY", 
-	*b"EARTH", *b"EASEL", *b"EATEN", *b"EATER", *b"EBONY", *b"ECLAT", *b"EDICT", *b"EDIFY", *b"EERIE", 
-	*b"EGRET", *b"EIGHT", *b"EJECT", *b"EKING", *b"ELATE", *b"ELBOW", *b"ELDER", *b"ELECT", *b"ELEGY", 
-	*b"ELFIN", *b"ELIDE", *b"ELITE", *b"ELOPE", *b"ELUDE", *b"EMAIL", *b"EMBED", *b"EMBER", *b"EMCEE", 
-	*b"EMPTY", *b"ENACT", *b"ENDOW", *b"ENEMA", *b"ENEMY", *b"ENJOY", *b"ENNUI", *b"ENSUE", *b"ENTER", 
-	*b"ENTRY", *b"ENVOY", *b"EPOCH", *b"EPOXY", *b"EQUAL", *b"EQUIP", *b"ERASE", *b"ERECT", *b"ERODE", 
-	*b"ERROR", *b"ERUPT", *b"ESSAY", *b"ESTER", *b"ETHER", *b"ETHIC", *b"ETHOS", *b"ETUDE", *b"EVADE", 
-	*b"EVENT", *b"EVERY", *b"EVICT", *b"EVOKE", *b"EXACT", *b"EXALT", *b"EXCEL", *b"EXERT", *b"EXILE", 
-	*b"EXIST", *b"EXPEL", *b"EXTOL", *b"EXTRA", *b"EXULT", *b"EYING", *b"FABLE", *b"FACET", *b"FAINT", 
-	*b"FAIRY", *b"FAITH", *b"FALSE", *b"FANCY", *b"FANNY", *b"FARCE", *b"FATAL", *b"FATTY", *b"FAULT", 
-	*b"FAUNA", *b"FAVOR", *b"FEAST", *b"FECAL", *b"FEIGN", *b"FELLA", *b"FELON", *b"FEMME", *b"FEMUR", 
-	*b"FENCE", *b"FERAL", *b"FERRY", *b"FETAL", *b"FETCH", *b"FETID", *b"FETUS", *b"FEVER", *b"FEWER", 
-	*b"FIBER", *b"FICUS", *b"FIELD", *b"FIEND", *b"FIERY", *b"FIFTH", *b"FIFTY", *b"FIGHT", *b"FILER", 
-	*b"FILET", *b"FILLY", *b"FILMY", *b"FILTH", *b"FINAL", *b"FINCH", *b"FINER", *b"FIRST", *b"FISHY", 
-	*b"FIXER", *b"FIZZY", *b"FJORD", *b"FLACK", *b"FLAIL", *b"FLAIR", *b"FLAKE", *b"FLAKY", *b"FLAME", 
-	*b"FLANK", *b"FLARE", *b"FLASH", *b"FLASK", *b"FLECK", *b"FLEET", *b"FLESH", *b"FLICK", *b"FLIER", 
-	*b"FLING", *b"FLINT", *b"FLIRT", *b"FLOAT", *b"FLOCK", *b"FLOOD", *b"FLOOR", *b"FLORA", *b"FLOSS", 
-	*b"FLOUR", *b"FLOUT", *b"FLOWN", *b"FLUFF", *b"FLUID", *b"FLUKE", *b"FLUME", *b"FLUNG", *b"FLUNK", 
-	*b"FLUSH", *b"FLUTE", *b"FLYER", *b"FOAMY", *b"FOCAL", *b"FOCUS", *b"FOGGY", *b"FOIST", *b"FOLIO", 
-	*b"FOLLY", *b"FORAY", *b"FORCE", *b"FORGE", *b"FORGO", *b"FORTE", *b"FORTH", *b"FORTY", *b"FORUM", 
-	*b"FOUND", *b"FOYER", *b"FRAIL", *b"FRAME", *b"FRANK", *b"FRAUD", *b"FREAK", *b"FREED", *b"FREER", 
-	*b"FRESH", *b"FRIAR", *b"FRIED", *b"FRILL", *b"FRISK", *b"FRITZ", *b"FROCK", *b"FROND", *b"FRONT", 
-	*b"FROST", *b"FROTH", *b"FROWN", *b"FROZE", *b"FRUIT", *b"FUDGE", *b"FUGUE", *b"FULLY", *b"FUNGI", 
-	*b"FUNKY", *b"FUNNY", *b"FUROR", *b"FURRY", *b"FUSSY", *b"FUZZY", *b"GAFFE", *b"GAILY", *b"GAMER", 
-	*b"GAMMA", *b"GAMUT", *b"GASSY", *b"GAUDY", *b"GAUGE", *b"GAUNT", *b"GAUZE", *b"GAVEL", *b"GAWKY", 
-	*b"GAYER", *b"GAYLY", *b"GAZER", *b"GECKO", *b"GEEKY", *b"GEESE", *b"GENIE", *b"GENRE", *b"GHOST", 
-	*b"GHOUL", *b"GIANT", *b"GIDDY", *b"GIPSY", *b"GIRLY", *b"GIRTH", *b"GIVEN", *b"GIVER", *b"GLADE", 
-	*b"GLAND", *b"GLARE", *b"GLASS", *b"GLAZE", *b"GLEAM", *b"GLEAN", *b"GLIDE", *b"GLINT", *b"GLOAT", 
-	*b"GLOBE", *b"GLOOM", *b"GLORY", *b"GLOSS", *b"GLOVE", *b"GLYPH", *b"GNASH", *b"GNOME", *b"GODLY", 
-	*b"GOING", *b"GOLEM", *b"GOLLY", *b"GONAD", *b"GONER", *b"GOODY", *b"GOOEY", *b"GOOFY", *b"GOOSE", 
-	*b"GORGE", *b"GOUGE", *b"GOURD", *b"GRACE", *b"GRADE", *b"GRAFT", *b"GRAIL", *b"GRAIN", *b"GRAND", 
-	*b"GRANT", *b"GRAPE", *b"GRAPH", *b"GRASP", *b"GRASS", *b"GRATE", *b"GRAVE", *b"GRAVY", *b"GRAZE", 
-	*b"GREAT", *b"GREED", *b"GREEN", *b"GREET", *b"GRIEF", *b"GRILL", *b"GRIME", *b"GRIMY", *b"GRIND", 
-	*b"GRIPE", *b"GROAN", *b"GROIN", *b"GROOM", *b"GROPE", *b"GROSS", *b"GROUP", *b"GROUT", *b"GROVE", 
-	*b"GROWL", *b"GROWN", *b"GRUEL", *b"GRUFF", *b"GRUNT", *b"GUARD", *b"GUAVA", *b"GUESS", *b"GUEST", 
-	*b"GUIDE", *b"GUILD", *b"GUILE", *b"GUILT", *b"GUISE", *b"GULCH", *b"GULLY", *b"GUMBO", *b"GUMMY", 
-	*b"GUPPY", *b"GUSTO", *b"GUSTY", *b"GYPSY", *b"HABIT", *b"HAIRY", *b"HALVE", *b"HANDY", *b"HAPPY", 
-	*b"HARDY", *b"HAREM", *b"HARPY", *b"HARRY", *b"HARSH", *b"HASTE", *b"HASTY", *b"HATCH", *b"HATER", 
-	*b"HAUNT", *b"HAUTE", *b"HAVEN", *b"HAVOC", *b"HAZEL", *b"HEADY", *b"HEARD", *b"HEART", *b"HEATH", 
-	*b"HEAVE", *b"HEAVY", *b"HEDGE", *b"HEFTY", *b"HEIST", *b"HELIX", *b"HELLO", *b"HENCE", *b"HERON", 
-	*b"HILLY", *b"HINGE", *b"HIPPO", *b"HIPPY", *b"HITCH", *b"HOARD", *b"HOBBY", *b"HOIST", *b"HOLLY", 
-	*b"HOMER", *b"HONEY", *b"HONOR", *b"HORDE", *b"HORNY", *b"HORSE", *b"HOTEL", *b"HOTLY", *b"HOUND", 
-	*b"HOUSE", *b"HOVEL", *b"HOVER", *b"HOWDY", *b"HUMAN", *b"HUMID", *b"HUMOR", *b"HUMPH", *b"HUMUS", 
-	*b"HUNCH", *b"HUNKY", *b"HURRY", *b"HUSKY", *b"HUSSY", *b"HUTCH", *b"HYDRO", *b"HYENA", *b"HYMEN", 
-	*b"HYPER", *b"ICILY", *b"ICING", *b"IDEAL", *b"IDIOM", *b"IDIOT", *b"IDLER", *b"IDYLL", *b"IGLOO", 
-	*b"ILIAC", *b"IMAGE", *b"IMBUE", *b"IMPEL", *b"IMPLY", *b"INANE", *b"INBOX", *b"INCUR", *b"INDEX", 
-	*b"INEPT", *b"INERT", *b"INFER", *b"INGOT", *b"INLAY", *b"INLET", *b"INNER", *b"INPUT", *b"INTER", 
-	*b"INTRO", *b"IONIC", *b"IRATE", *b"IRONY", *b"ISLET", *b"ISSUE", *b"ITCHY", *b"IVORY", *b"JAUNT", 
-	*b"JAZZY", *b"JELLY", *b"JERKY", *b"JETTY", *b"JEWEL", *b"JIFFY", *b"JOINT", *b"JOIST", *b"JOKER", 
-	*b"JOLLY", *b"JOUST", *b"JUDGE", *b"JUICE", *b"JUICY", *b"JUMBO", *b"JUMPY", *b"JUNTA", *b"JUNTO", 
-	*b"JUROR", *b"KAPPA", *b"KARMA", *b"KAYAK", *b"KEBAB", *b"KHAKI", *b"KINKY", *b"KIOSK", *b"KITTY", 
-	*b"KNACK", *b"KNAVE", *b"KNEAD", *b"KNEED", *b"KNEEL", *b"KNELT", *b"KNIFE", *b"KNOCK", *b"KNOLL", 
-	*b"KNOWN", *b"KOALA", *b"KRILL", *b"LABEL", *b"LABOR", *b"LADEN", *b"LADLE", *b"LAGER", *b"LANCE", 
-	*b"LANKY", *b"LAPEL", *b"LAPSE", *b"LARGE", *b"LARVA", *b"LASSO", *b"LATCH", *b"LATER", *b"LATHE", 
-	*b"LATTE", *b"LAUGH", *b"LAYER", *b"LEACH", *b"LEAFY", *b"LEAKY", *b"LEANT", *b"LEAPT", *b"LEARN", 
-	*b"LEASE", *b"LEASH", *b"LEAST", *b"LEAVE", *b"LEDGE", *b"LEECH", *b"LEERY", *b"LEFTY", *b"LEGAL", 
-	*b"LEGGY", *b"LEMON", *b"LEMUR", *b"LEPER", *b"LEVEL", *b"LEVER", *b"LIBEL", *b"LIEGE", *b"LIGHT", 
-	*b"LIKEN", *b"LILAC", *b"LIMBO", *b"LIMIT", *b"LINEN", *b"LINER", *b"LINGO", *b"LIPID", *b"LITHE", 
-	*b"LIVER", *b"LIVID", *b"LLAMA", *b"LOAMY", *b"LOATH", *b"LOBBY", *b"LOCAL", *b"LOCUS", *b"LODGE", 
-	*b"LOFTY", *b"LOGIC", *b"LOGIN", *b"LOOPY", *b"LOOSE", *b"LORRY", *b"LOSER", *b"LOUSE", *b"LOUSY", 
-	*b"LOVER", *b"LOWER", *b"LOWLY", *b"LOYAL", *b"LUCID", *b"LUCKY", *b"LUMEN", *b"LUMPY", *b"LUNAR", 
-	*b"LUNCH", *b"LUNGE", *b"LUPUS", *b"LURCH", *b"LURID", *b"LUSTY", *b"LYING", *b"LYMPH", *b"LYRIC", 
-	*b"MACAW", *b"MACHO", *b"MACRO", *b"MADAM", *b"MADLY", *b"MAFIA", *b"MAGIC", *b"MAGMA", *b"MAIZE", 
-	*b"MAJOR", *b"MAKER", *b"MAMBO", *b"MAMMA", *b"MAMMY", *b"MANGA", *b"MANGE", *b"MANGO", *b"MANGY", 
-	*b"MANIA", *b"MANIC", *b"MANLY", *b"MANOR", *b"MAPLE", *b"MARCH", *b"MARRY", *b"MARSH", *b"MASON", 
-	*b"MASSE", *b"MATCH", *b"MATEY", *b"MAUVE", *b"MAXIM", *b"MAYBE", *b"MAYOR", *b"MEALY", *b"MEANT", 
-	*b"MEATY", *b"MECCA", *b"MEDAL", *b"MEDIA", *b"MEDIC", *b"MELEE", *b"MELON", *b"MERCY", *b"MERGE", 
-	*b"MERIT", *b"MERRY", *b"METAL", *b"METER", *b"METRO", *b"MICRO", *b"MIDGE", *b"MIDST", *b"MIGHT", 
-	*b"MILKY", *b"MIMIC", *b"MINCE", *b"MINER", *b"MINIM", *b"MINOR", *b"MINTY", *b"MINUS", *b"MIRTH", 
-	*b"MISER", *b"MISSY", *b"MOCHA", *b"MODAL", *b"MODEL", *b"MODEM", *b"MOGUL", *b"MOIST", *b"MOLAR", 
-	*b"MOLDY", *b"MONEY", *b"MONTH", *b"MOODY", *b"MOOSE", *b"MORAL", *b"MORON", *b"MORPH", *b"MOSSY", 
-	*b"MOTEL", *b"MOTIF", *b"MOTOR", *b"MOTTO", *b"MOULT", *b"MOUND", *b"MOUNT", *b"MOURN", *b"MOUSE", 
-	*b"MOUTH", *b"MOVER", *b"MOVIE", *b"MOWER", *b"MUCKY", *b"MUCUS", *b"MUDDY", *b"MULCH", *b"MUMMY", 
-	*b"MUNCH", *b"MURAL", *b"MURKY", *b"MUSHY", *b"MUSIC", *b"MUSKY", *b"MUSTY", *b"MYRRH", *b"NADIR", 
-	*b"NAIVE", *b"NANNY", *b"NASAL", *b"NASTY", *b"NATAL", *b"NAVAL", *b"NAVEL", *b"NEEDY", *b"NEIGH", 
-	*b"NERDY", *b"NERVE", *b"NEVER", *b"NEWER", *b"NEWLY", *b"NICER", *b"NICHE", *b"NIECE", *b"NIGHT", 
-	*b"NINJA", *b"NINNY", *b"NINTH", *b"NOBLE", *b"NOBLY", *b"NOISE", *b"NOISY", *b"NOMAD", *b"NOOSE", 
-	*b"NORTH", *b"NOSEY", *b"NOTCH", *b"NOVEL", *b"NUDGE", *b"NURSE", *b"NUTTY", *b"NYLON", *b"NYMPH", 
-	*b"OAKEN", *b"OBESE", *b"OCCUR", *b"OCEAN", *b"OCTAL", *b"OCTET", *b"ODDER", *b"ODDLY", *b"OFFAL", 
-	*b"OFFER", *b"OFTEN", *b"OLDEN", *b"OLDER", *b"OLIVE", *b"OMBRE", *b"OMEGA", *b"ONION", *b"ONSET", 
-	*b"OPERA", *b"OPINE", *b"OPIUM", *b"OPTIC", *b"ORBIT", *b"ORDER", *b"ORGAN", *b"OTHER", *b"OTTER", 
-	*b"OUGHT", *b"OUNCE", *b"OUTDO", *b"OUTER", *b"OUTGO", *b"OVARY", *b"OVATE", *b"OVERT", *b"OVINE", 
-	*b"OVOID", *b"OWING", *b"OWNER", *b"OXIDE", *b"OZONE", *b"PADDY", *b"PAGAN", *b"PAINT", *b"PALER", 
-	*b"PALSY", *b"PANEL", *b"PANIC", *b"PANSY", *b"PAPAL", *b"PAPER", *b"PARER", *b"PARKA", *b"PARRY", 
-	*b"PARSE", *b"PARTY", *b"PASTA", *b"PASTE", *b"PASTY", *b"PATCH", *b"PATIO", *b"PATSY", *b"PATTY", 
-	*b"PAUSE", *b"PAYEE", *b"PAYER", *b"PEACE", *b"PEACH", *b"PEARL", *b"PECAN", *b"PEDAL", *b"PENAL", 
-	*b"PENCE", *b"PENNE", *b"PENNY", *b"PERCH", *b"PERIL", *b"PERKY", *b"PESKY", *b"PESTO", *b"PETAL", 
-	*b"PETTY", *b"PHASE", *b"PHONE", *b"PHONY", *b"PHOTO", *b"PIANO", *b"PICKY", *b"PIECE", *b"PIETY", 
-	*b"PIGGY", *b"PILOT", *b"PINCH", *b"PINEY", *b"PINKY", *b"PINTO", *b"PIPER", *b"PIQUE", *b"PITCH", 
-	*b"PITHY", *b"PIVOT", *b"PIXEL", *b"PIXIE", *b"PIZZA", *b"PLACE", *b"PLAID", *b"PLAIN", *b"PLAIT", 
-	*b"PLANE", *b"PLANK", *b"PLANT", *b"PLATE", *b"PLAZA", *b"PLEAD", *b"PLEAT", *b"PLIED", *b"PLIER", 
-	*b"PLUCK", *b"PLUMB", *b"PLUME", *b"PLUMP", *b"PLUNK", *b"PLUSH", *b"POESY", *b"POINT", *b"POISE", 
-	*b"POKER", *b"POLAR", *b"POLKA", *b"POLYP", *b"POOCH", *b"POPPY", *b"PORCH", *b"POSER", *b"POSIT", 
-	*b"POSSE", *b"POUCH", *b"POUND", *b"POUTY", *b"POWER", *b"PRANK", *b"PRAWN", *b"PREEN", *b"PRESS", 
-	*b"PRICE", *b"PRICK", *b"PRIDE", *b"PRIED", *b"PRIME", *b"PRIMO", *b"PRINT", *b"PRIOR", *b"PRISM", 
-	*b"PRIVY", *b"PRIZE", *b"PROBE", *b"PRONE", *b"PRONG", *b"PROOF", *b"PROSE", *b"PROUD", *b"PROVE", 
-	*b"PROWL", *b"PROXY", *b"PRUDE", *b"PRUNE", *b"PSALM", *b"PUBIC", *b"PUDGY", *b"PUFFY", *b"PULPY", 
-	*b"PULSE", *b"PUNCH", *b"PUPIL", *b"PUPPY", *b"PUREE", *b"PURER", *b"PURGE", *b"PURSE", *b"PUSHY", 
-	*b"PUTTY", *b"PYGMY", *b"QUACK", *b"QUAIL", *b"QUAKE", *b"QUALM", *b"QUARK", *b"QUART", *b"QUASH", 
-	*b"QUASI", *b"QUEEN", *b"QUEER", *b"QUELL", *b"QUERY", *b"QUEST", *b"QUEUE", *b"QUICK", *b"QUIET", 
-	*b"QUILL", *b"QUILT", *b"QUIRK", *b"QUITE", *b"QUOTA", *b"QUOTE", *b"QUOTH", *b"RABBI", *b"RABID", 
-	*b"RACER", *b"RADAR", *b"RADII", *b"RADIO", *b"RAINY", *b"RAISE", *b"RAJAH", *b"RALLY", *b"RALPH", 
-	*b"RAMEN", *b"RANCH", *b"RANDY", *b"RANGE", *b"RAPID", *b"RARER", *b"RASPY", *b"RATIO", *b"RATTY", 
-	*b"RAVEN", *b"RAYON", *b"RAZOR", *b"REACH", *b"REACT", *b"READY", *b"REALM", *b"REARM", *b"REBAR", 
-	*b"REBEL", *b"REBUS", *b"REBUT", *b"RECAP", *b"RECUR", *b"RECUT", *b"REEDY", *b"REFER", *b"REFIT", 
-	*b"REGAL", *b"REHAB", *b"REIGN", *b"RELAX", *b"RELAY", *b"RELIC", *b"REMIT", *b"RENAL", *b"RENEW", 
-	*b"REPAY", *b"REPEL", *b"REPLY", *b"RERUN", *b"RESET", *b"RESIN", *b"RETCH", *b"RETRO", *b"RETRY", 
-	*b"REUSE", *b"REVEL", *b"REVUE", *b"RHINO", *b"RHYME", *b"RIDER", *b"RIDGE", *b"RIFLE", *b"RIGHT", 
-	*b"RIGID", *b"RIGOR", *b"RINSE", *b"RIPEN", *b"RIPER", *b"RISEN", *b"RISER", *b"RISKY", *b"RIVAL", 
-	*b"RIVER", *b"RIVET", *b"ROACH", *b"ROAST", *b"ROBIN", *b"ROBOT", *b"ROCKY", *b"RODEO", *b"ROGER", 
-	*b"ROGUE", *b"ROOMY", *b"ROOST", *b"ROTOR", *b"ROUGE", *b"ROUGH", *b"ROUND", *b"ROUSE", *b"ROUTE", 
-	*b"ROVER", *b"ROWDY", *b"ROWER", *b"ROYAL", *b"RUDDY", *b"RUDER", *b"RUGBY", *b"RULER", *b"RUMBA", 
-	*b"RUMOR", *b"RUPEE", *b"RURAL", *b"RUSTY", *b"SADLY", *b"SAFER", *b"SAINT", *b"SALAD", *b"SALLY", 
-	*b"SALON", *b"SALSA", *b"SALTY", *b"SALVE", *b"SALVO", *b"SANDY", *b"SANER", *b"SAPPY", *b"SASSY", 
-	*b"SATIN", *b"SATYR", *b"SAUCE", *b"SAUCY", *b"SAUNA", *b"SAUTE", *b"SAVOR", *b"SAVOY", *b"SAVVY", 
-	*b"SCALD", *b"SCALE", *b"SCALP", *b"SCALY", *b"SCAMP", *b"SCANT", *b"SCARE", *b"SCARF", *b"SCARY", 
-	*b"SCENE", *b"SCENT", *b"SCION", *b"SCOFF", *b"SCOLD", *b"SCONE", *b"SCOOP", *b"SCOPE", *b"SCORE", 
-	*b"SCORN", *b"SCOUR", *b"SCOUT", *b"SCOWL", *b"SCRAM", *b"SCRAP", *b"SCREE", *b"SCREW", *b"SCRUB", 
-	*b"SCRUM", *b"SCUBA", *b"SEDAN", *b"SEEDY", *b"SEGUE", *b"SEIZE", *b"SEMEN", *b"SENSE", *b"SEPIA", 
-	*b"SERIF", *b"SERUM", *b"SERVE", *b"SETUP", *b"SEVEN", *b"SEVER", *b"SEWER", *b"SHACK", *b"SHADE", 
-	*b"SHADY", *b"SHAFT", *b"SHAKE", *b"SHAKY", *b"SHALE", *b"SHALL", *b"SHALT", *b"SHAME", *b"SHANK", 
-	*b"SHAPE", *b"SHARD", *b"SHARE", *b"SHARK", *b"SHARP", *b"SHAVE", *b"SHAWL", *b"SHEAR", *b"SHEEN", 
-	*b"SHEEP", *b"SHEER", *b"SHEET", *b"SHEIK", *b"SHELF", *b"SHELL", *b"SHIED", *b"SHIFT", *b"SHINE", 
-	*b"SHINY", *b"SHIRE", *b"SHIRK", *b"SHIRT", *b"SHOAL", *b"SHOCK", *b"SHONE", *b"SHOOK", *b"SHOOT", 
-	*b"SHORE", *b"SHORN", *b"SHORT", *b"SHOUT", *b"SHOVE", *b"SHOWN", *b"SHOWY", *b"SHREW", *b"SHRUB", 
-	*b"SHRUG", *b"SHUCK", *b"SHUNT", *b"SHUSH", *b"SHYLY", *b"SIEGE", *b"SIEVE", *b"SIGHT", *b"SIGMA", 
-	*b"SILKY", *b"SILLY", *b"SINCE", *b"SINEW", *b"SINGE", *b"SIREN", *b"SISSY", *b"SIXTH", *b"SIXTY", 
-	*b"SKATE", *b"SKIER", *b"SKIFF", *b"SKILL", *b"SKIMP", *b"SKIRT", *b"SKULK", *b"SKULL", *b"SKUNK", 
-	*b"SLACK", *b"SLAIN", *b"SLANG", *b"SLANT", *b"SLASH", *b"SLATE", *b"SLEEK", *b"SLEEP", *b"SLEET", 
-	*b"SLEPT", *b"SLICE", *b"SLICK", *b"SLIDE", *b"SLIME", *b"SLIMY", *b"SLING", *b"SLINK", *b"SLOOP", 
-	*b"SLOPE", *b"SLOSH", *b"SLOTH", *b"SLUMP", *b"SLUNG", *b"SLUNK", *b"SLURP", *b"SLUSH", *b"SLYLY", 
-	*b"SMACK", *b"SMALL", *b"SMART", *b"SMASH", *b"SMEAR", *b"SMELL", *b"SMELT", *b"SMILE", *b"SMIRK", 
-	*b"SMITE", *b"SMITH", *b"SMOCK", *b"SMOKE", *b"SMOKY", *b"SMOTE", *b"SNACK", *b"SNAIL", *b"SNAKE", 
-	*b"SNAKY", *b"SNARE", *b"SNARL", *b"SNEAK", *b"SNEER", *b"SNIDE", *b"SNIFF", *b"SNIPE", *b"SNOOP", 
-	*b"SNORE", *b"SNORT", *b"SNOUT", *b"SNOWY", *b"SNUCK", *b"SNUFF", *b"SOAPY", *b"SOBER", *b"SOGGY", 
-	*b"SOLAR", *b"SOLID", *b"SOLVE", *b"SONAR", *b"SONIC", *b"SOOTH", *b"SOOTY", *b"SORRY", *b"SOUND", 
-	*b"SOUTH", *b"SOWER", *b"SPACE", *b"SPADE", *b"SPANK", *b"SPARE", *b"SPARK", *b"SPASM", *b"SPAWN", 
-	*b"SPEAK", *b"SPEAR", *b"SPECK", *b"SPEED", *b"SPELL", *b"SPELT", *b"SPEND", *b"SPENT", *b"SPERM", 
-	*b"SPICE", *b"SPICY", *b"SPIED", *b"SPIEL", *b"SPIKE", *b"SPIKY", *b"SPILL", *b"SPILT", *b"SPINE", 
-	*b"SPINY", *b"SPIRE", *b"SPITE", *b"SPLAT", *b"SPLIT", *b"SPOIL", *b"SPOKE", *b"SPOOF", *b"SPOOK", 
-	*b"SPOOL", *b"SPOON", *b"SPORE", *b"SPORT", *b"SPOUT", *b"SPRAY", *b"SPREE", *b"SPRIG", *b"SPUNK", 
-	*b"SPURN", *b"SPURT", *b"SQUAD", *b"SQUAT", *b"SQUIB", *b"STACK", *b"STAFF", *b"STAGE", *b"STAID", 
-	*b"STAIN", *b"STAIR", *b"STAKE", *b"STALE", *b"STALK", *b"STALL", *b"STAMP", *b"STAND", *b"STANK", 
-	*b"STARE", *b"STARK", *b"START", *b"STASH", *b"STATE", *b"STAVE", *b"STEAD", *b"STEAK", *b"STEAL", 
-	*b"STEAM", *b"STEED", *b"STEEL", *b"STEEP", *b"STEER", *b"STEIN", *b"STERN", *b"STICK", *b"STIFF", 
-	*b"STILL", *b"STILT", *b"STING", *b"STINK", *b"STINT", *b"STOCK", *b"STOIC", *b"STOKE", *b"STOLE", 
-	*b"STOMP", *b"STONE", *b"STONY", *b"STOOD", *b"STOOL", *b"STOOP", *b"STORE", *b"STORK", *b"STORM", 
-	*b"STORY", *b"STOUT", *b"STOVE", *b"STRAP", *b"STRAW", *b"STRAY", *b"STRIP", *b"STRUT", *b"STUCK", 
-	*b"STUDY", *b"STUFF", *b"STUMP", *b"STUNG", *b"STUNK", *b"STUNT", *b"STYLE", *b"SUAVE", *b"SUGAR", 
-	*b"SUING", *b"SUITE", *b"SULKY", *b"SULLY", *b"SUMAC", *b"SUNNY", *b"SUPER", *b"SURER", *b"SURGE", 
-	*b"SURLY", *b"SUSHI", *b"SWAMI", *b"SWAMP", *b"SWARM", *b"SWASH", *b"SWATH", *b"SWEAR", *b"SWEAT", 
-	*b"SWEEP", *b"SWEET", *b"SWELL", *b"SWEPT", *b"SWIFT", *b"SWILL", *b"SWINE", *b"SWING", *b"SWIRL", 
-	*b"SWISH", *b"SWOON", *b"SWOOP", *b"SWORD", *b"SWORE", *b"SWORN", *b"SWUNG", *b"SYNOD", *b"SYRUP", 
-	*b"TABBY", *b"TABLE", *b"TABOO", *b"TACIT", *b"TACKY", *b"TAFFY", *b"TAINT", *b"TAKEN", *b"TAKER", 
-	*b"TALLY", *b"TALON", *b"TAMER", *b"TANGO", *b"TANGY", *b"TAPER", *b"TAPIR", *b"TARDY", *b"TAROT", 
-	*b"TASTE", *b"TASTY", *b"TATTY", *b"TAUNT", *b"TAWNY", *b"TEACH", *b"TEARY", *b"TEASE", *b"TEDDY", 
-	*b"TEETH", *b"TEMPO", *b"TENET", *b"TENOR", *b"TENSE", *b"TENTH", *b"TEPEE", *b"TEPID", *b"TERRA", 
-	*b"TERSE", *b"TESTY", *b"THANK", *b"THEFT", *b"THEIR", *b"THEME", *b"THERE", *b"THESE", *b"THETA", 
-	*b"THICK", *b"THIEF", *b"THIGH", *b"THING", *b"THINK", *b"THIRD", *b"THONG", *b"THORN", *b"THOSE", 
-	*b"THREE", *b"THREW", *b"THROB", *b"THROW", *b"THRUM", *b"THUMB", *b"THUMP", *b"THYME", *b"TIARA", 
-	*b"TIBIA", *b"TIDAL", *b"TIGER", *b"TIGHT", *b"TILDE", *b"TIMER", *b"TIMID", *b"TIPSY", *b"TITAN", 
-	*b"TITHE", *b"TITLE", *b"TOAST", *b"TODAY", *b"TODDY", *b"TOKEN", *b"TONAL", *b"TONGA", *b"TONIC", 
-	*b"TOOTH", *b"TOPAZ", *b"TOPIC", *b"TORCH", *b"TORSO", *b"TORUS", *b"TOTAL", *b"TOTEM", *b"TOUCH", 
-	*b"TOUGH", *b"TOWEL", *b"TOWER", *b"TOXIC", *b"TOXIN", *b"TRACE", *b"TRACK", *b"TRACT", *b"TRADE", 
-	*b"TRAIL", *b"TRAIN", *b"TRAIT", *b"TRAMP", *b"TRANS", *b"TRASH", *b"TRAWL", *b"TREAD", *b"TREAT", 
-	*b"TREND", *b"TRIAD", *b"TRIAL", *b"TRIBE", *b"TRICE", *b"TRICK", *b"TRIED", *b"TRIPE", *b"TRITE", 
-	*b"TROLL", *b"TROOP", *b"TROPE", *b"TROUT", *b"TROVE", *b"TRUCE", *b"TRUCK", *b"TRUER", *b"TRULY", 
-	*b"TRUMP", *b"TRUNK", *b"TRUSS", *b"TRUST", *b"TRUTH", *b"TRYST", *b"TUBAL", *b"TUBER", *b"TULIP", 
-	*b"TULLE", *b"TUMOR", *b"TUNIC", *b"TURBO", *b"TUTOR", *b"TWANG", *b"TWEAK", *b"TWEED", *b"TWEET", 
-	*b"TWICE", *b"TWINE", *b"TWIRL", *b"TWIST", *b"TWIXT", *b"TYING", *b"UDDER", *b"ULCER", *b"ULTRA", 
-	*b"UMBRA", *b"UNCLE", *b"UNCUT", *b"UNDER", *b"UNDID", *b"UNDUE", *b"UNFED", *b"UNFIT", *b"UNIFY", 
-	*b"UNION", *b"UNITE", *b"UNITY", *b"UNLIT", *b"UNMET", *b"UNSET", *b"UNTIE", *b"UNTIL", *b"UNWED", 
-	*b"UNZIP", *b"UPPER", *b"UPSET", *b"URBAN", *b"URINE", *b"USAGE", *b"USHER", *b"USING", *b"USUAL", 
-	*b"USURP", *b"UTILE", *b"UTTER", *b"VAGUE", *b"VALET", *b"VALID", *b"VALOR", *b"VALUE", *b"VALVE", 
-	*b"VAPID", *b"VAPOR", *b"VAULT", *b"VAUNT", *b"VEGAN", *b"VENOM", *b"VENUE", *b"VERGE", *b"VERSE", 
-	*b"VERSO", *b"VERVE", *b"VICAR", *b"VIDEO", *b"VIGIL", *b"VIGOR", *b"VILLA", *b"VINYL", *b"VIOLA", 
-	*b"VIPER", *b"VIRAL", *b"VIRUS", *b"VISIT", *b"VISOR", *b"VISTA", *b"VITAL", *b"VIVID", *b"VIXEN", 
-	*b"VOCAL", *b"VODKA", *b"VOGUE", *b"VOICE", *b"VOILA", *b"VOMIT", *b"VOTER", *b"VOUCH", *b"VOWEL", 
-	*b"VYING", *b"WACKY", *b"WAFER", *b"WAGER", *b"WAGON", *b"WAIST", *b"WAIVE", *b"WALTZ", *b"WARTY", 
-	*b"WASTE", *b"WATCH", *b"WATER", *b"WAVER", *b"WAXEN", *b"WEARY", *b"WEAVE", *b"WEDGE", *b"WEEDY", 
-	*b"WEIGH", *b"WEIRD", *b"WELCH", *b"WELSH", *b"WHACK", *b"WHALE", *b"WHARF", *b"WHEAT", *b"WHEEL", 
-	*b"WHELP", *b"WHERE", *b"WHICH", *b"WHIFF", *b"WHILE", *b"WHINE", *b"WHINY", *b"WHIRL", *b"WHISK", 
-	*b"WHITE", *b"WHOLE", *b"WHOOP", *b"WHOSE", *b"WIDEN", *b"WIDER", *b"WIDOW", *b"WIDTH", *b"WIELD", 
-	*b"WIGHT", *b"WILLY", *b"WIMPY", *b"WINCE", *b"WINCH", *b"WINDY", *b"WISER", *b"WISPY", *b"WITCH", 
-	*b"WITTY", *b"WOKEN", *b"WOMAN", *b"WOMEN", *b"WOODY", *b"WOOER", *b"WOOLY", *b"WOOZY", *b"WORDY", 
-	*b"WORLD", *b"WORRY", *b"WORSE", *b"WORST", *b"WORTH", *b"WOULD", *b"WOUND", *b"WOVEN", *b"WRACK", 
-	*b"WRATH", *b"WREAK", *b"WRECK", *b"WREST", *b"WRING", *b"WRIST", *b"WRITE", *b"WRONG", *b"WROTE", 
-	*b"WRUNG", *b"WRYLY", *b"YACHT", *b"YEARN", *b"YEAST", *b"YIELD", *b"YOUNG", *b"YOUTH", *b"ZEBRA", 
-	*b"ZESTY", *b"ZONAL"
+	*b"CLASP", *b"CLASS", *b"CLEAN", *b"CLEAR", *b"CLEAT", *b"CLEFT", *b"CLERK", *b"CLICK", 
+	*b"CLIFF", *b"CLIMB", *b"CLING", *b"CLINK", *b"CLOAK", *b"CLOCK", *b"CLONE", *b"CLOSE", 
+	*b"CLOTH", *b"CLOUD", *b"CLOUT", *b"CLOVE", *b"CLOWN", *b"CLUCK", *b"CLUED", *b"CLUMP", 
+	*b"CLUNG", *b"COACH", *b"COAST", *b"COBRA", *b"COCOA", *b"COLON", *b"COLOR", *b"COMET", 
+	*b"COMFY", *b"COMIC", *b"COMMA", *b"CONCH", *b"CONDO", *b"CONIC", *b"COPSE", *b"CORAL", 
+	*b"CORER", *b"CORNY", *b"COUCH", *b"COUGH", *b"COULD", *b"COUNT", *b"COUPE", *b"COURT", 
+	*b"COVEN", *b"COVER", *b"COVET", *b"COVEY", *b"COWER", *b"COYLY", *b"CRACK", *b"CRAFT", 
+	*b"CRAMP", *b"CRANE", *b"CRANK", *b"CRASH", *b"CRASS", *b"CRATE", *b"CRAVE", *b"CRAWL", 
+	*b"CRAZE", *b"CRAZY", *b"CREAK", *b"CREAM", *b"CREDO", *b"CREED", *b"CREEK", *b"CREEP", 
+	*b"CREME", *b"CREPE", *b"CREPT", *b"CRESS", *b"CREST", *b"CRICK", *b"CRIED", *b"CRIER", 
+	*b"CRIME", *b"CRIMP", *b"CRISP", *b"CROAK", *b"CROCK", *b"CRONE", *b"CRONY", *b"CROOK", 
+	*b"CROSS", *b"CROUP", *b"CROWD", *b"CROWN", *b"CRUDE", *b"CRUEL", *b"CRUMB", *b"CRUMP", 
+	*b"CRUSH", *b"CRUST", *b"CRYPT", *b"CUBIC", *b"CUMIN", *b"CURIO", *b"CURLY", *b"CURRY", 
+	*b"CURSE", *b"CURVE", *b"CURVY", *b"CUTIE", *b"CYBER", *b"CYCLE", *b"CYNIC", *b"DADDY", 
+	*b"DAILY", *b"DAIRY", *b"DAISY", *b"DALLY", *b"DANCE", *b"DANDY", *b"DATUM", *b"DAUNT", 
+	*b"DEALT", *b"DEATH", *b"DEBAR", *b"DEBIT", *b"DEBUG", *b"DEBUT", *b"DECAL", *b"DECAY", 
+	*b"DECOR", *b"DECOY", *b"DECRY", *b"DEFER", *b"DEIGN", *b"DEITY", *b"DELAY", *b"DELTA", 
+	*b"DELVE", *b"DEMON", *b"DEMUR", *b"DENIM", *b"DENSE", *b"DEPOT", *b"DEPTH", *b"DERBY", 
+	*b"DETER", *b"DETOX", *b"DEUCE", *b"DEVIL", *b"DIARY", *b"DICEY", *b"DIGIT", *b"DILLY", 
+	*b"DIMLY", *b"DINER", *b"DINGO", *b"DINGY", *b"DIODE", *b"DIRGE", *b"DIRTY", *b"DISCO", 
+	*b"DITCH", *b"DITTO", *b"DITTY", *b"DIVER", *b"DIZZY", *b"DODGE", *b"DODGY", *b"DOGMA", 
+	*b"DOING", *b"DOLLY", *b"DONOR", *b"DONUT", *b"DOPEY", *b"DOUBT", *b"DOUGH", *b"DOWDY", 
+	*b"DOWEL", *b"DOWNY", *b"DOWRY", *b"DOZEN", *b"DRAFT", *b"DRAIN", *b"DRAKE", *b"DRAMA", 
+	*b"DRANK", *b"DRAPE", *b"DRAWL", *b"DRAWN", *b"DREAD", *b"DREAM", *b"DRESS", *b"DRIED", 
+	*b"DRIER", *b"DRIFT", *b"DRILL", *b"DRINK", *b"DRIVE", *b"DROIT", *b"DROLL", *b"DRONE", 
+	*b"DROOL", *b"DROOP", *b"DROSS", *b"DROVE", *b"DROWN", *b"DRUID", *b"DRUNK", *b"DRYER", 
+	*b"DRYLY", *b"DUCHY", *b"DULLY", *b"DUMMY", *b"DUMPY", *b"DUNCE", *b"DUSKY", *b"DUSTY", 
+	*b"DUTCH", *b"DUVET", *b"DWARF", *b"DWELL", *b"DWELT", *b"DYING", *b"EAGER", *b"EAGLE", 
+	*b"EARLY", *b"EARTH", *b"EASEL", *b"EATEN", *b"EATER", *b"EBONY", *b"ECLAT", *b"EDICT", 
+	*b"EDIFY", *b"EERIE", *b"EGRET", *b"EIGHT", *b"EJECT", *b"EKING", *b"ELATE", *b"ELBOW", 
+	*b"ELDER", *b"ELECT", *b"ELEGY", *b"ELFIN", *b"ELIDE", *b"ELITE", *b"ELOPE", *b"ELUDE", 
+	*b"EMAIL", *b"EMBED", *b"EMBER", *b"EMCEE", *b"EMPTY", *b"ENACT", *b"ENDOW", *b"ENEMA", 
+	*b"ENEMY", *b"ENJOY", *b"ENNUI", *b"ENSUE", *b"ENTER", *b"ENTRY", *b"ENVOY", *b"EPOCH", 
+	*b"EPOXY", *b"EQUAL", *b"EQUIP", *b"ERASE", *b"ERECT", *b"ERODE", *b"ERROR", *b"ERUPT", 
+	*b"ESSAY", *b"ESTER", *b"ETHER", *b"ETHIC", *b"ETHOS", *b"ETUDE", *b"EVADE", *b"EVENT", 
+	*b"EVERY", *b"EVICT", *b"EVOKE", *b"EXACT", *b"EXALT", *b"EXCEL", *b"EXERT", *b"EXILE", 
+	*b"EXIST", *b"EXPEL", *b"EXTOL", *b"EXTRA", *b"EXULT", *b"EYING", *b"FABLE", *b"FACET", 
+	*b"FAINT", *b"FAIRY", *b"FAITH", *b"FALSE", *b"FANCY", *b"FANNY", *b"FARCE", *b"FATAL", 
+	*b"FATTY", *b"FAULT", *b"FAUNA", *b"FAVOR", *b"FEAST", *b"FECAL", *b"FEIGN", *b"FELLA", 
+	*b"FELON", *b"FEMME", *b"FEMUR", *b"FENCE", *b"FERAL", *b"FERRY", *b"FETAL", *b"FETCH", 
+	*b"FETID", *b"FETUS", *b"FEVER", *b"FEWER", *b"FIBER", *b"FICUS", *b"FIELD", *b"FIEND", 
+	*b"FIERY", *b"FIFTH", *b"FIFTY", *b"FIGHT", *b"FILER", *b"FILET", *b"FILLY", *b"FILMY", 
+	*b"FILTH", *b"FINAL", *b"FINCH", *b"FINER", *b"FIRST", *b"FISHY", *b"FIXER", *b"FIZZY", 
+	*b"FJORD", *b"FLACK", *b"FLAIL", *b"FLAIR", *b"FLAKE", *b"FLAKY", *b"FLAME", *b"FLANK", 
+	*b"FLARE", *b"FLASH", *b"FLASK", *b"FLECK", *b"FLEET", *b"FLESH", *b"FLICK", *b"FLIER", 
+	*b"FLING", *b"FLINT", *b"FLIRT", *b"FLOAT", *b"FLOCK", *b"FLOOD", *b"FLOOR", *b"FLORA", 
+	*b"FLOSS", *b"FLOUR", *b"FLOUT", *b"FLOWN", *b"FLUFF", *b"FLUID", *b"FLUKE", *b"FLUME", 
+	*b"FLUNG", *b"FLUNK", *b"FLUSH", *b"FLUTE", *b"FLYER", *b"FOAMY", *b"FOCAL", *b"FOCUS", 
+	*b"FOGGY", *b"FOIST", *b"FOLIO", *b"FOLLY", *b"FORAY", *b"FORCE", *b"FORGE", *b"FORGO", 
+	*b"FORTE", *b"FORTH", *b"FORTY", *b"FORUM", *b"FOUND", *b"FOYER", *b"FRAIL", *b"FRAME", 
+	*b"FRANK", *b"FRAUD", *b"FREAK", *b"FREED", *b"FREER", *b"FRESH", *b"FRIAR", *b"FRIED", 
+	*b"FRILL", *b"FRISK", *b"FRITZ", *b"FROCK", *b"FROND", *b"FRONT", *b"FROST", *b"FROTH", 
+	*b"FROWN", *b"FROZE", *b"FRUIT", *b"FUDGE", *b"FUGUE", *b"FULLY", *b"FUNGI", *b"FUNKY", 
+	*b"FUNNY", *b"FUROR", *b"FURRY", *b"FUSSY", *b"FUZZY", *b"GAFFE", *b"GAILY", *b"GAMER", 
+	*b"GAMMA", *b"GAMUT", *b"GASSY", *b"GAUDY", *b"GAUGE", *b"GAUNT", *b"GAUZE", *b"GAVEL", 
+	*b"GAWKY", *b"GAYER", *b"GAYLY", *b"GAZER", *b"GECKO", *b"GEEKY", *b"GEESE", *b"GENIE", 
+	*b"GENRE", *b"GHOST", *b"GHOUL", *b"GIANT", *b"GIDDY", *b"GIPSY", *b"GIRLY", *b"GIRTH", 
+	*b"GIVEN", *b"GIVER", *b"GLADE", *b"GLAND", *b"GLARE", *b"GLASS", *b"GLAZE", *b"GLEAM", 
+	*b"GLEAN", *b"GLIDE", *b"GLINT", *b"GLOAT", *b"GLOBE", *b"GLOOM", *b"GLORY", *b"GLOSS", 
+	*b"GLOVE", *b"GLYPH", *b"GNASH", *b"GNOME", *b"GODLY", *b"GOING", *b"GOLEM", *b"GOLLY", 
+	*b"GONAD", *b"GONER", *b"GOODY", *b"GOOEY", *b"GOOFY", *b"GOOSE", *b"GORGE", *b"GOUGE", 
+	*b"GOURD", *b"GRACE", *b"GRADE", *b"GRAFT", *b"GRAIL", *b"GRAIN", *b"GRAND", *b"GRANT", 
+	*b"GRAPE", *b"GRAPH", *b"GRASP", *b"GRASS", *b"GRATE", *b"GRAVE", *b"GRAVY", *b"GRAZE", 
+	*b"GREAT", *b"GREED", *b"GREEN", *b"GREET", *b"GRIEF", *b"GRILL", *b"GRIME", *b"GRIMY", 
+	*b"GRIND", *b"GRIPE", *b"GROAN", *b"GROIN", *b"GROOM", *b"GROPE", *b"GROSS", *b"GROUP", 
+	*b"GROUT", *b"GROVE", *b"GROWL", *b"GROWN", *b"GRUEL", *b"GRUFF", *b"GRUNT", *b"GUARD", 
+	*b"GUAVA", *b"GUESS", *b"GUEST", *b"GUIDE", *b"GUILD", *b"GUILE", *b"GUILT", *b"GUISE", 
+	*b"GULCH", *b"GULLY", *b"GUMBO", *b"GUMMY", *b"GUPPY", *b"GUSTO", *b"GUSTY", *b"GYPSY", 
+	*b"HABIT", *b"HAIRY", *b"HALVE", *b"HANDY", *b"HAPPY", *b"HARDY", *b"HAREM", *b"HARPY", 
+	*b"HARRY", *b"HARSH", *b"HASTE", *b"HASTY", *b"HATCH", *b"HATER", *b"HAUNT", *b"HAUTE", 
+	*b"HAVEN", *b"HAVOC", *b"HAZEL", *b"HEADY", *b"HEARD", *b"HEART", *b"HEATH", *b"HEAVE", 
+	*b"HEAVY", *b"HEDGE", *b"HEFTY", *b"HEIST", *b"HELIX", *b"HELLO", *b"HENCE", *b"HERON", 
+	*b"HILLY", *b"HINGE", *b"HIPPO", *b"HIPPY", *b"HITCH", *b"HOARD", *b"HOBBY", *b"HOIST", 
+	*b"HOLLY", *b"HOMER", *b"HONEY", *b"HONOR", *b"HORDE", *b"HORNY", *b"HORSE", *b"HOTEL", 
+	*b"HOTLY", *b"HOUND", *b"HOUSE", *b"HOVEL", *b"HOVER", *b"HOWDY", *b"HUMAN", *b"HUMID", 
+	*b"HUMOR", *b"HUMPH", *b"HUMUS", *b"HUNCH", *b"HUNKY", *b"HURRY", *b"HUSKY", *b"HUSSY", 
+	*b"HUTCH", *b"HYDRO", *b"HYENA", *b"HYMEN", *b"HYPER", *b"ICILY", *b"ICING", *b"IDEAL", 
+	*b"IDIOM", *b"IDIOT", *b"IDLER", *b"IDYLL", *b"IGLOO", *b"ILIAC", *b"IMAGE", *b"IMBUE", 
+	*b"IMPEL", *b"IMPLY", *b"INANE", *b"INBOX", *b"INCUR", *b"INDEX", *b"INEPT", *b"INERT", 
+	*b"INFER", *b"INGOT", *b"INLAY", *b"INLET", *b"INNER", *b"INPUT", *b"INTER", *b"INTRO", 
+	*b"IONIC", *b"IRATE", *b"IRONY", *b"ISLET", *b"ISSUE", *b"ITCHY", *b"IVORY", *b"JAUNT", 
+	*b"JAZZY", *b"JELLY", *b"JERKY", *b"JETTY", *b"JEWEL", *b"JIFFY", *b"JOINT", *b"JOIST", 
+	*b"JOKER", *b"JOLLY", *b"JOUST", *b"JUDGE", *b"JUICE", *b"JUICY", *b"JUMBO", *b"JUMPY", 
+	*b"JUNTA", *b"JUNTO", *b"JUROR", *b"KAPPA", *b"KARMA", *b"KAYAK", *b"KEBAB", *b"KHAKI", 
+	*b"KINKY", *b"KIOSK", *b"KITTY", *b"KNACK", *b"KNAVE", *b"KNEAD", *b"KNEED", *b"KNEEL", 
+	*b"KNELT", *b"KNIFE", *b"KNOCK", *b"KNOLL", *b"KNOWN", *b"KOALA", *b"KRILL", *b"LABEL", 
+	*b"LABOR", *b"LADEN", *b"LADLE", *b"LAGER", *b"LANCE", *b"LANKY", *b"LAPEL", *b"LAPSE", 
+	*b"LARGE", *b"LARVA", *b"LASSO", *b"LATCH", *b"LATER", *b"LATHE", *b"LATTE", *b"LAUGH", 
+	*b"LAYER", *b"LEACH", *b"LEAFY", *b"LEAKY", *b"LEANT", *b"LEAPT", *b"LEARN", *b"LEASE", 
+	*b"LEASH", *b"LEAST", *b"LEAVE", *b"LEDGE", *b"LEECH", *b"LEERY", *b"LEFTY", *b"LEGAL", 
+	*b"LEGGY", *b"LEMON", *b"LEMUR", *b"LEPER", *b"LEVEL", *b"LEVER", *b"LIBEL", *b"LIEGE", 
+	*b"LIGHT", *b"LIKEN", *b"LILAC", *b"LIMBO", *b"LIMIT", *b"LINEN", *b"LINER", *b"LINGO", 
+	*b"LIPID", *b"LITHE", *b"LIVER", *b"LIVID", *b"LLAMA", *b"LOAMY", *b"LOATH", *b"LOBBY", 
+	*b"LOCAL", *b"LOCUS", *b"LODGE", *b"LOFTY", *b"LOGIC", *b"LOGIN", *b"LOOPY", *b"LOOSE", 
+	*b"LORRY", *b"LOSER", *b"LOUSE", *b"LOUSY", *b"LOVER", *b"LOWER", *b"LOWLY", *b"LOYAL", 
+	*b"LUCID", *b"LUCKY", *b"LUMEN", *b"LUMPY", *b"LUNAR", *b"LUNCH", *b"LUNGE", *b"LUPUS", 
+	*b"LURCH", *b"LURID", *b"LUSTY", *b"LYING", *b"LYMPH", *b"LYRIC", *b"MACAW", *b"MACHO", 
+	*b"MACRO", *b"MADAM", *b"MADLY", *b"MAFIA", *b"MAGIC", *b"MAGMA", *b"MAIZE", *b"MAJOR", 
+	*b"MAKER", *b"MAMBO", *b"MAMMA", *b"MAMMY", *b"MANGA", *b"MANGE", *b"MANGO", *b"MANGY", 
+	*b"MANIA", *b"MANIC", *b"MANLY", *b"MANOR", *b"MAPLE", *b"MARCH", *b"MARRY", *b"MARSH", 
+	*b"MASON", *b"MASSE", *b"MATCH", *b"MATEY", *b"MAUVE", *b"MAXIM", *b"MAYBE", *b"MAYOR", 
+	*b"MEALY", *b"MEANT", *b"MEATY", *b"MECCA", *b"MEDAL", *b"MEDIA", *b"MEDIC", *b"MELEE", 
+	*b"MELON", *b"MERCY", *b"MERGE", *b"MERIT", *b"MERRY", *b"METAL", *b"METER", *b"METRO", 
+	*b"MICRO", *b"MIDGE", *b"MIDST", *b"MIGHT", *b"MILKY", *b"MIMIC", *b"MINCE", *b"MINER", 
+	*b"MINIM", *b"MINOR", *b"MINTY", *b"MINUS", *b"MIRTH", *b"MISER", *b"MISSY", *b"MOCHA", 
+	*b"MODAL", *b"MODEL", *b"MODEM", *b"MOGUL", *b"MOIST", *b"MOLAR", *b"MOLDY", *b"MONEY", 
+	*b"MONTH", *b"MOODY", *b"MOOSE", *b"MORAL", *b"MORON", *b"MORPH", *b"MOSSY", *b"MOTEL", 
+	*b"MOTIF", *b"MOTOR", *b"MOTTO", *b"MOULT", *b"MOUND", *b"MOUNT", *b"MOURN", *b"MOUSE", 
+	*b"MOUTH", *b"MOVER", *b"MOVIE", *b"MOWER", *b"MUCKY", *b"MUCUS", *b"MUDDY", *b"MULCH", 
+	*b"MUMMY", *b"MUNCH", *b"MURAL", *b"MURKY", *b"MUSHY", *b"MUSIC", *b"MUSKY", *b"MUSTY", 
+	*b"MYRRH", *b"NADIR", *b"NAIVE", *b"NANNY", *b"NASAL", *b"NASTY", *b"NATAL", *b"NAVAL", 
+	*b"NAVEL", *b"NEEDY", *b"NEIGH", *b"NERDY", *b"NERVE", *b"NEVER", *b"NEWER", *b"NEWLY", 
+	*b"NICER", *b"NICHE", *b"NIECE", *b"NIGHT", *b"NINJA", *b"NINNY", *b"NINTH", *b"NOBLE", 
+	*b"NOBLY", *b"NOISE", *b"NOISY", *b"NOMAD", *b"NOOSE", *b"NORTH", *b"NOSEY", *b"NOTCH", 
+	*b"NOVEL", *b"NUDGE", *b"NURSE", *b"NUTTY", *b"NYLON", *b"NYMPH", *b"OAKEN", *b"OBESE", 
+	*b"OCCUR", *b"OCEAN", *b"OCTAL", *b"OCTET", *b"ODDER", *b"ODDLY", *b"OFFAL", *b"OFFER", 
+	*b"OFTEN", *b"OLDEN", *b"OLDER", *b"OLIVE", *b"OMBRE", *b"OMEGA", *b"ONION", *b"ONSET", 
+	*b"OPERA", *b"OPINE", *b"OPIUM", *b"OPTIC", *b"ORBIT", *b"ORDER", *b"ORGAN", *b"OTHER", 
+	*b"OTTER", *b"OUGHT", *b"OUNCE", *b"OUTDO", *b"OUTER", *b"OUTGO", *b"OVARY", *b"OVATE", 
+	*b"OVERT", *b"OVINE", *b"OVOID", *b"OWING", *b"OWNER", *b"OXIDE", *b"OZONE", *b"PADDY", 
+	*b"PAGAN", *b"PAINT", *b"PALER", *b"PALSY", *b"PANEL", *b"PANIC", *b"PANSY", *b"PAPAL", 
+	*b"PAPER", *b"PARER", *b"PARKA", *b"PARRY", *b"PARSE", *b"PARTY", *b"PASTA", *b"PASTE", 
+	*b"PASTY", *b"PATCH", *b"PATIO", *b"PATSY", *b"PATTY", *b"PAUSE", *b"PAYEE", *b"PAYER", 
+	*b"PEACE", *b"PEACH", *b"PEARL", *b"PECAN", *b"PEDAL", *b"PENAL", *b"PENCE", *b"PENNE", 
+	*b"PENNY", *b"PERCH", *b"PERIL", *b"PERKY", *b"PESKY", *b"PESTO", *b"PETAL", *b"PETTY", 
+	*b"PHASE", *b"PHONE", *b"PHONY", *b"PHOTO", *b"PIANO", *b"PICKY", *b"PIECE", *b"PIETY", 
+	*b"PIGGY", *b"PILOT", *b"PINCH", *b"PINEY", *b"PINKY", *b"PINTO", *b"PIPER", *b"PIQUE", 
+	*b"PITCH", *b"PITHY", *b"PIVOT", *b"PIXEL", *b"PIXIE", *b"PIZZA", *b"PLACE", *b"PLAID", 
+	*b"PLAIN", *b"PLAIT", *b"PLANE", *b"PLANK", *b"PLANT", *b"PLATE", *b"PLAZA", *b"PLEAD", 
+	*b"PLEAT", *b"PLIED", *b"PLIER", *b"PLUCK", *b"PLUMB", *b"PLUME", *b"PLUMP", *b"PLUNK", 
+	*b"PLUSH", *b"POESY", *b"POINT", *b"POISE", *b"POKER", *b"POLAR", *b"POLKA", *b"POLYP", 
+	*b"POOCH", *b"POPPY", *b"PORCH", *b"POSER", *b"POSIT", *b"POSSE", *b"POUCH", *b"POUND", 
+	*b"POUTY", *b"POWER", *b"PRANK", *b"PRAWN", *b"PREEN", *b"PRESS", *b"PRICE", *b"PRICK", 
+	*b"PRIDE", *b"PRIED", *b"PRIME", *b"PRIMO", *b"PRINT", *b"PRIOR", *b"PRISM", *b"PRIVY", 
+	*b"PRIZE", *b"PROBE", *b"PRONE", *b"PRONG", *b"PROOF", *b"PROSE", *b"PROUD", *b"PROVE", 
+	*b"PROWL", *b"PROXY", *b"PRUDE", *b"PRUNE", *b"PSALM", *b"PUBIC", *b"PUDGY", *b"PUFFY", 
+	*b"PULPY", *b"PULSE", *b"PUNCH", *b"PUPIL", *b"PUPPY", *b"PUREE", *b"PURER", *b"PURGE", 
+	*b"PURSE", *b"PUSHY", *b"PUTTY", *b"PYGMY", *b"QUACK", *b"QUAIL", *b"QUAKE", *b"QUALM", 
+	*b"QUARK", *b"QUART", *b"QUASH", *b"QUASI", *b"QUEEN", *b"QUEER", *b"QUELL", *b"QUERY", 
+	*b"QUEST", *b"QUEUE", *b"QUICK", *b"QUIET", *b"QUILL", *b"QUILT", *b"QUIRK", *b"QUITE", 
+	*b"QUOTA", *b"QUOTE", *b"QUOTH", *b"RABBI", *b"RABID", *b"RACER", *b"RADAR", *b"RADII", 
+	*b"RADIO", *b"RAINY", *b"RAISE", *b"RAJAH", *b"RALLY", *b"RALPH", *b"RAMEN", *b"RANCH", 
+	*b"RANDY", *b"RANGE", *b"RAPID", *b"RARER", *b"RASPY", *b"RATIO", *b"RATTY", *b"RAVEN", 
+	*b"RAYON", *b"RAZOR", *b"REACH", *b"REACT", *b"READY", *b"REALM", *b"REARM", *b"REBAR", 
+	*b"REBEL", *b"REBUS", *b"REBUT", *b"RECAP", *b"RECUR", *b"RECUT", *b"REEDY", *b"REFER", 
+	*b"REFIT", *b"REGAL", *b"REHAB", *b"REIGN", *b"RELAX", *b"RELAY", *b"RELIC", *b"REMIT", 
+	*b"RENAL", *b"RENEW", *b"REPAY", *b"REPEL", *b"REPLY", *b"RERUN", *b"RESET", *b"RESIN", 
+	*b"RETCH", *b"RETRO", *b"RETRY", *b"REUSE", *b"REVEL", *b"REVUE", *b"RHINO", *b"RHYME", 
+	*b"RIDER", *b"RIDGE", *b"RIFLE", *b"RIGHT", *b"RIGID", *b"RIGOR", *b"RINSE", *b"RIPEN", 
+	*b"RIPER", *b"RISEN", *b"RISER", *b"RISKY", *b"RIVAL", *b"RIVER", *b"RIVET", *b"ROACH", 
+	*b"ROAST", *b"ROBIN", *b"ROBOT", *b"ROCKY", *b"RODEO", *b"ROGER", *b"ROGUE", *b"ROOMY", 
+	*b"ROOST", *b"ROTOR", *b"ROUGE", *b"ROUGH", *b"ROUND", *b"ROUSE", *b"ROUTE", *b"ROVER", 
+	*b"ROWDY", *b"ROWER", *b"ROYAL", *b"RUDDY", *b"RUDER", *b"RUGBY", *b"RULER", *b"RUMBA", 
+	*b"RUMOR", *b"RUPEE", *b"RURAL", *b"RUSTY", *b"SADLY", *b"SAFER", *b"SAINT", *b"SALAD", 
+	*b"SALLY", *b"SALON", *b"SALSA", *b"SALTY", *b"SALVE", *b"SALVO", *b"SANDY", *b"SANER", 
+	*b"SAPPY", *b"SASSY", *b"SATIN", *b"SATYR", *b"SAUCE", *b"SAUCY", *b"SAUNA", *b"SAUTE", 
+	*b"SAVOR", *b"SAVOY", *b"SAVVY", *b"SCALD", *b"SCALE", *b"SCALP", *b"SCALY", *b"SCAMP", 
+	*b"SCANT", *b"SCARE", *b"SCARF", *b"SCARY", *b"SCENE", *b"SCENT", *b"SCION", *b"SCOFF", 
+	*b"SCOLD", *b"SCONE", *b"SCOOP", *b"SCOPE", *b"SCORE", *b"SCORN", *b"SCOUR", *b"SCOUT", 
+	*b"SCOWL", *b"SCRAM", *b"SCRAP", *b"SCREE", *b"SCREW", *b"SCRUB", *b"SCRUM", *b"SCUBA", 
+	*b"SEDAN", *b"SEEDY", *b"SEGUE", *b"SEIZE", *b"SEMEN", *b"SENSE", *b"SEPIA", *b"SERIF", 
+	*b"SERUM", *b"SERVE", *b"SETUP", *b"SEVEN", *b"SEVER", *b"SEWER", *b"SHACK", *b"SHADE", 
+	*b"SHADY", *b"SHAFT", *b"SHAKE", *b"SHAKY", *b"SHALE", *b"SHALL", *b"SHALT", *b"SHAME", 
+	*b"SHANK", *b"SHAPE", *b"SHARD", *b"SHARE", *b"SHARK", *b"SHARP", *b"SHAVE", *b"SHAWL", 
+	*b"SHEAR", *b"SHEEN", *b"SHEEP", *b"SHEER", *b"SHEET", *b"SHEIK", *b"SHELF", *b"SHELL", 
+	*b"SHIED", *b"SHIFT", *b"SHINE", *b"SHINY", *b"SHIRE", *b"SHIRK", *b"SHIRT", *b"SHOAL", 
+	*b"SHOCK", *b"SHONE", *b"SHOOK", *b"SHOOT", *b"SHORE", *b"SHORN", *b"SHORT", *b"SHOUT", 
+	*b"SHOVE", *b"SHOWN", *b"SHOWY", *b"SHREW", *b"SHRUB", *b"SHRUG", *b"SHUCK", *b"SHUNT", 
+	*b"SHUSH", *b"SHYLY", *b"SIEGE", *b"SIEVE", *b"SIGHT", *b"SIGMA", *b"SILKY", *b"SILLY", 
+	*b"SINCE", *b"SINEW", *b"SINGE", *b"SIREN", *b"SISSY", *b"SIXTH", *b"SIXTY", *b"SKATE", 
+	*b"SKIER", *b"SKIFF", *b"SKILL", *b"SKIMP", *b"SKIRT", *b"SKULK", *b"SKULL", *b"SKUNK", 
+	*b"SLACK", *b"SLAIN", *b"SLANG", *b"SLANT", *b"SLASH", *b"SLATE", *b"SLEEK", *b"SLEEP", 
+	*b"SLEET", *b"SLEPT", *b"SLICE", *b"SLICK", *b"SLIDE", *b"SLIME", *b"SLIMY", *b"SLING", 
+	*b"SLINK", *b"SLOOP", *b"SLOPE", *b"SLOSH", *b"SLOTH", *b"SLUMP", *b"SLUNG", *b"SLUNK", 
+	*b"SLURP", *b"SLUSH", *b"SLYLY", *b"SMACK", *b"SMALL", *b"SMART", *b"SMASH", *b"SMEAR", 
+	*b"SMELL", *b"SMELT", *b"SMILE", *b"SMIRK", *b"SMITE", *b"SMITH", *b"SMOCK", *b"SMOKE", 
+	*b"SMOKY", *b"SMOTE", *b"SNACK", *b"SNAIL", *b"SNAKE", *b"SNAKY", *b"SNARE", *b"SNARL", 
+	*b"SNEAK", *b"SNEER", *b"SNIDE", *b"SNIFF", *b"SNIPE", *b"SNOOP", *b"SNORE", *b"SNORT", 
+	*b"SNOUT", *b"SNOWY", *b"SNUCK", *b"SNUFF", *b"SOAPY", *b"SOBER", *b"SOGGY", *b"SOLAR", 
+	*b"SOLID", *b"SOLVE", *b"SONAR", *b"SONIC", *b"SOOTH", *b"SOOTY", *b"SORRY", *b"SOUND", 
+	*b"SOUTH", *b"SOWER", *b"SPACE", *b"SPADE", *b"SPANK", *b"SPARE", *b"SPARK", *b"SPASM", 
+	*b"SPAWN", *b"SPEAK", *b"SPEAR", *b"SPECK", *b"SPEED", *b"SPELL", *b"SPELT", *b"SPEND", 
+	*b"SPENT", *b"SPERM", *b"SPICE", *b"SPICY", *b"SPIED", *b"SPIEL", *b"SPIKE", *b"SPIKY", 
+	*b"SPILL", *b"SPILT", *b"SPINE", *b"SPINY", *b"SPIRE", *b"SPITE", *b"SPLAT", *b"SPLIT", 
+	*b"SPOIL", *b"SPOKE", *b"SPOOF", *b"SPOOK", *b"SPOOL", *b"SPOON", *b"SPORE", *b"SPORT", 
+	*b"SPOUT", *b"SPRAY", *b"SPREE", *b"SPRIG", *b"SPUNK", *b"SPURN", *b"SPURT", *b"SQUAD", 
+	*b"SQUAT", *b"SQUIB", *b"STACK", *b"STAFF", *b"STAGE", *b"STAID", *b"STAIN", *b"STAIR", 
+	*b"STAKE", *b"STALE", *b"STALK", *b"STALL", *b"STAMP", *b"STAND", *b"STANK", *b"STARE", 
+	*b"STARK", *b"START", *b"STASH", *b"STATE", *b"STAVE", *b"STEAD", *b"STEAK", *b"STEAL", 
+	*b"STEAM", *b"STEED", *b"STEEL", *b"STEEP", *b"STEER", *b"STEIN", *b"STERN", *b"STICK", 
+	*b"STIFF", *b"STILL", *b"STILT", *b"STING", *b"STINK", *b"STINT", *b"STOCK", *b"STOIC", 
+	*b"STOKE", *b"STOLE", *b"STOMP", *b"STONE", *b"STONY", *b"STOOD", *b"STOOL", *b"STOOP", 
+	*b"STORE", *b"STORK", *b"STORM", *b"STORY", *b"STOUT", *b"STOVE", *b"STRAP", *b"STRAW", 
+	*b"STRAY", *b"STRIP", *b"STRUT", *b"STUCK", *b"STUDY", *b"STUFF", *b"STUMP", *b"STUNG", 
+	*b"STUNK", *b"STUNT", *b"STYLE", *b"SUAVE", *b"SUGAR", *b"SUING", *b"SUITE", *b"SULKY", 
+	*b"SULLY", *b"SUMAC", *b"SUNNY", *b"SUPER", *b"SURER", *b"SURGE", *b"SURLY", *b"SUSHI", 
+	*b"SWAMI", *b"SWAMP", *b"SWARM", *b"SWASH", *b"SWATH", *b"SWEAR", *b"SWEAT", *b"SWEEP", 
+	*b"SWEET", *b"SWELL", *b"SWEPT", *b"SWIFT", *b"SWILL", *b"SWINE", *b"SWING", *b"SWIRL", 
+	*b"SWISH", *b"SWOON", *b"SWOOP", *b"SWORD", *b"SWORE", *b"SWORN", *b"SWUNG", *b"SYNOD", 
+	*b"SYRUP", *b"TABBY", *b"TABLE", *b"TABOO", *b"TACIT", *b"TACKY", *b"TAFFY", *b"TAINT", 
+	*b"TAKEN", *b"TAKER", *b"TALLY", *b"TALON", *b"TAMER", *b"TANGO", *b"TANGY", *b"TAPER", 
+	*b"TAPIR", *b"TARDY", *b"TAROT", *b"TASTE", *b"TASTY", *b"TATTY", *b"TAUNT", *b"TAWNY", 
+	*b"TEACH", *b"TEARY", *b"TEASE", *b"TEDDY", *b"TEETH", *b"TEMPO", *b"TENET", *b"TENOR", 
+	*b"TENSE", *b"TENTH", *b"TEPEE", *b"TEPID", *b"TERRA", *b"TERSE", *b"TESTY", *b"THANK", 
+	*b"THEFT", *b"THEIR", *b"THEME", *b"THERE", *b"THESE", *b"THETA", *b"THICK", *b"THIEF", 
+	*b"THIGH", *b"THING", *b"THINK", *b"THIRD", *b"THONG", *b"THORN", *b"THOSE", *b"THREE", 
+	*b"THREW", *b"THROB", *b"THROW", *b"THRUM", *b"THUMB", *b"THUMP", *b"THYME", *b"TIARA", 
+	*b"TIBIA", *b"TIDAL", *b"TIGER", *b"TIGHT", *b"TILDE", *b"TIMER", *b"TIMID", *b"TIPSY", 
+	*b"TITAN", *b"TITHE", *b"TITLE", *b"TOAST", *b"TODAY", *b"TODDY", *b"TOKEN", *b"TONAL", 
+	*b"TONGA", *b"TONIC", *b"TOOTH", *b"TOPAZ", *b"TOPIC", *b"TORCH", *b"TORSO", *b"TORUS", 
+	*b"TOTAL", *b"TOTEM", *b"TOUCH", *b"TOUGH", *b"TOWEL", *b"TOWER", *b"TOXIC", *b"TOXIN", 
+	*b"TRACE", *b"TRACK", *b"TRACT", *b"TRADE", *b"TRAIL", *b"TRAIN", *b"TRAIT", *b"TRAMP", 
+	*b"TRASH", *b"TRAWL", *b"TREAD", *b"TREAT", *b"TREND", *b"TRIAD", *b"TRIAL", *b"TRIBE", 
+	*b"TRICE", *b"TRICK", *b"TRIED", *b"TRIPE", *b"TRITE", *b"TROLL", *b"TROOP", *b"TROPE", 
+	*b"TROUT", *b"TROVE", *b"TRUCE", *b"TRUCK", *b"TRUER", *b"TRULY", *b"TRUMP", *b"TRUNK", 
+	*b"TRUSS", *b"TRUST", *b"TRUTH", *b"TRYST", *b"TUBAL", *b"TUBER", *b"TULIP", *b"TULLE", 
+	*b"TUMOR", *b"TUNIC", *b"TURBO", *b"TUTOR", *b"TWANG", *b"TWEAK", *b"TWEED", *b"TWEET", 
+	*b"TWICE", *b"TWINE", *b"TWIRL", *b"TWIST", *b"TWIXT", *b"TYING", *b"UDDER", *b"ULCER", 
+	*b"ULTRA", *b"UMBRA", *b"UNCLE", *b"UNCUT", *b"UNDER", *b"UNDID", *b"UNDUE", *b"UNFED", 
+	*b"UNFIT", *b"UNIFY", *b"UNION", *b"UNITE", *b"UNITY", *b"UNLIT", *b"UNMET", *b"UNSET", 
+	*b"UNTIE", *b"UNTIL", *b"UNWED", *b"UNZIP", *b"UPPER", *b"UPSET", *b"URBAN", *b"URINE", 
+	*b"USAGE", *b"USHER", *b"USING", *b"USUAL", *b"USURP", *b"UTILE", *b"UTTER", *b"VAGUE", 
+	*b"VALET", *b"VALID", *b"VALOR", *b"VALUE", *b"VALVE", *b"VAPID", *b"VAPOR", *b"VAULT", 
+	*b"VAUNT", *b"VEGAN", *b"VENOM", *b"VENUE", *b"VERGE", *b"VERSE", *b"VERSO", *b"VERVE", 
+	*b"VICAR", *b"VIDEO", *b"VIGIL", *b"VIGOR", *b"VILLA", *b"VINYL", *b"VIOLA", *b"VIPER", 
+	*b"VIRAL", *b"VIRUS", *b"VISIT", *b"VISOR", *b"VISTA", *b"VITAL", *b"VIVID", *b"VIXEN", 
+	*b"VOCAL", *b"VODKA", *b"VOGUE", *b"VOICE", *b"VOILA", *b"VOMIT", *b"VOTER", *b"VOUCH", 
+	*b"VOWEL", *b"VYING", *b"WACKY", *b"WAFER", *b"WAGER", *b"WAGON", *b"WAIST", *b"WAIVE", 
+	*b"WALTZ", *b"WARTY", *b"WASTE", *b"WATCH", *b"WATER", *b"WAVER", *b"WAXEN", *b"WEARY", 
+	*b"WEAVE", *b"WEDGE", *b"WEEDY", *b"WEIGH", *b"WEIRD", *b"WELCH", *b"WELSH", *b"WHACK", 
+	*b"WHALE", *b"WHARF", *b"WHEAT", *b"WHEEL", *b"WHELP", *b"WHERE", *b"WHICH", *b"WHIFF", 
+	*b"WHILE", *b"WHINE", *b"WHINY", *b"WHIRL", *b"WHISK", *b"WHITE", *b"WHOLE", *b"WHOOP", 
+	*b"WHOSE", *b"WIDEN", *b"WIDER", *b"WIDOW", *b"WIDTH", *b"WIELD", *b"WIGHT", *b"WILLY", 
+	*b"WIMPY", *b"WINCE", *b"WINCH", *b"WINDY", *b"WISER", *b"WISPY", *b"WITCH", *b"WITTY", 
+	*b"WOKEN", *b"WOMAN", *b"WOMEN", *b"WOODY", *b"WOOER", *b"WOOLY", *b"WOOZY", *b"WORDY", 
+	*b"WORLD", *b"WORRY", *b"WORSE", *b"WORST", *b"WORTH", *b"WOULD", *b"WOUND", *b"WOVEN", 
+	*b"WRACK", *b"WRATH", *b"WREAK", *b"WRECK", *b"WREST", *b"WRING", *b"WRIST", *b"WRITE", 
+	*b"WRONG", *b"WROTE", *b"WRUNG", *b"WRYLY", *b"YACHT", *b"YEARN", *b"YEAST", *b"YIELD", 
+	*b"YOUNG", *b"YOUTH", *b"ZEBRA", *b"ZESTY", *b"ZONAL"
+];
+
+pub const WORDLE_ANSWER_NUMBERS: [i32; NUM_WORDLE_ANSWERS] = [
+	110, 26, 18, 208, 1671, 2044, 1037, 1705, 1606, 1329, 702, 1851, 1455, 126, 677, 1127, 1648, 190, 1072, 2258, 1190, 1627, 463, 40, 964, 1105, 1083, 2281, 2013, 1468, 1196, 1218, 1348, 1479, 383, 102, 1598, 1221, 535, 1264, 1024, 70, 258, 826, 1632, 1495, 339, 1537, 1021, 2189, 413, 1113, 458, 866, 2092, 883, 2072, 273, 2014, 231, 112, 1235, 1779, 502, 451, 137, 1482, 1043, 855, 2007, 999, 1136, 1836, 1362, 1017, 302, 769, 1025, 1818, 2164, 623, 395, 1099, 885, 1747, 1621, 1291, 651, 1873, 2116, 2145, 2280, 1665, 397, 678, 1891, 589, 1167, 362, 499, 804, 611, 989, 73, 534, 1701, 241, 1226, 1094, 1748, 633, 2284, 1031, 1078, 192, 310, 843, 341, 345, 360, 2228, 1563, 91, 2308, 926, 1206, 538, 1944, 1956, 2208, 4, 649, 1172, 1856, 368, 683, 1916, 1684, 2084, 834, 1899, 321, 146, 1681, 1232, 508, 1850, 1570, 201, 2083, 823, 1842, 2243, 100, 1810, 801, 1634, 2036, 2136, 925, 183, 29, 1401, 344, 1053, 371, 1225, 1490, 867, 1383, 1676, 1721, 1166, 1188, 1622, 833, 332, 118, 1846, 1985, 58, 1388, 17, 1962, 1929, 386, 772, 830, 1287, 2085, 1216, 1801, 2063, 2235, 897, 1552, 1832, 1389, 82, 687, 1753, 2033, 1340, 295, 2046, 2238, 389, 1011, 1587, 572, 1324, 1293, 1442, 74, 2170, 1582, 809, 1312, 1476, 723, 869, 1382, 1197, 904, 250, 815, 1605, 845, 363, 825, 406, 1182, 1048, 139, 5, 1896, 1908, 2287, 2041, 832, 1133, 54, 197, 1736, 1889, 450, 130, 698, 2004, 887, 1707, 1637, 472, 715, 1675, 639, 1202, 2091, 839, 795, 184, 1795, 1391, 929, 968, 810, 1901, 684, 1001, 172, 1308, 135, 64, 1415, 1486, 1327, 259, 164, 369, 1670, 464, 1683, 1229, 1781, 1007, 1712, 1475, 2148, 2197, 2024, 1702, 1932, 796, 750, 412, 1434, 1138, 647, 1789, 1974, 1198, 2143, 1186, 1377, 914, 1360, 1812, 1026, 2304, 1798, 981, 1068, 1176, 2052, 2125, 953, 1900, 364, 1311, 1616, 756, 1827, 2027, 1660, 1815, 1646, 1505, 799, 323, 566, 1173, 1200, 1686, 2009, 305, 1365, 495, 585, 1058, 483, 270, 2273, 242, 1262, 939, 1751, 1296, 1870, 1310, 670, 2087, 1371, 1436, 182, 253, 567, 1685, 440, 1783, 626, 1698, 1316, 166, 927, 301, 1680, 2119, 278, 1503, 1738, 436, 963, 1558, 150, 2132, 736, 2187, 1881, 892, 254, 800, 1194, 609, 1156, 708, 298, 1574, 455, 1341, 0, 402, 1977, 96, 862, 1759, 528, 1791, 2163, 2001, 1603, 899, 446, 735, 1337, 1547, 1886, 1656, 134, 774, 1653, 417, 727, 1566, 160, 2059, 2054, 260, 2051, 1554, 1081, 432, 46, 1056, 2233, 724, 600, 140, 1809, 1529, 25, 1760, 122, 1255, 1055, 291, 1212, 2257, 175, 1027, 1144, 2010, 98, 637, 921, 224, 545, 2042, 1814, 1910, 865, 568, 1728, 1930, 409, 2139, 1766, 407, 1703, 203, 1042, 67, 45, 524, 1638, 186, 41, 347, 619, 1171, 884, 642, 1057, 1345, 1591, 343, 710, 1102, 916, 2131, 1426, 1874, 218, 1674, 33, 666, 2217, 2133, 734, 1006, 726, 803, 1033, 1664, 1441, 1458, 941, 1987, 23, 1302, 1641, 1303, 1561, 1295, 2081, 1689, 2140, 2026, 821, 1104, 713, 240, 532, 1918, 1004, 911, 808, 1555, 475, 1137, 2205, 1965, 21, 1657, 1241, 1872, 1594, 1418, 730, 1488, 1745, 2201, 1423, 1313, 1282, 896, 75, 331, 1619, 936, 488, 1199, 279, 351, 597, 550, 1372, 2029, 1958, 1124, 1768, 44, 1041, 984, 632, 997, 1797, 621, 1297, 2011, 1050, 1773, 617, 1294, 879, 1710, 244, 1829, 1421, 767, 872, 359, 987, 2129, 453, 942, 753, 636, 2159, 116, 129, 1289, 63, 1466, 1805, 1126, 2068, 910, 1677, 1358, 504, 1772, 2150, 1432, 1860, 1799, 206, 2165, 2057, 374, 1905, 1300, 1214, 650, 1161, 2117, 2126, 1063, 1123, 1125, 141, 2099, 1474, 758, 888, 1709, 1447, 119, 1343, 11, 1223, 851, 793, 1752, 644, 1573, 958, 1394, 783, 711, 1740, 2288, 779, 659, 594, 378, 873, 2275, 2100, 1539, 1457, 233, 933, 1497, 1739, 1317, 657, 401, 712, 2167, 648, 1350, 1093, 1353, 1082, 2043, 124, 1478, 478, 816, 877, 962, 1735, 1325, 170, 280, 481, 564, 1496, 1931, 131, 71, 601, 105, 1258, 1160, 1659, 1485, 1975, 7, 876, 976, 934, 641, 2127, 701, 951, 1982, 686, 486, 1848, 1487, 2256, 168, 2215, 1565, 1557, 1368, 605, 2263, 1319, 992, 2302, 326, 1719, 966, 492, 2177, 207, 1437, 1018, 19, 2289, 2195, 1514, 2186, 1862, 2254, 191, 1823, 1261, 794, 2303, 1843, 288, 751, 2199, 381, 1314, 1333, 2069, 1714, 1882, 2090, 969, 1551, 607, 1996, 592, 1077, 153, 56, 1158, 143, 1980, 106, 2306, 1926, 303, 1871, 2097, 1777, 1251, 1971, 1571, 2037, 2194, 520, 53, 76, 732, 128, 860, 1210, 358, 394, 353, 482, 1411, 31, 1370, 494, 745, 382, 818, 1195, 68, 2020, 1720, 2272, 1429, 764, 1793, 6, 267, 493, 1645, 2173, 514, 292, 1593, 97, 316, 2188, 55, 1281, 1904, 282, 304, 1859, 234, 1994, 1650, 1015, 1467, 689, 22, 1002, 2022, 1855, 831, 778, 1061, 1115, 79, 1887, 350, 653, 2112, 1988, 2185, 1456, 2078, 439, 1792, 555, 919, 931, 2181, 1623, 1266, 2290, 335, 93, 1464, 1409, 149, 2137, 1080, 435, 943, 375, 1961, 805, 1483, 325, 920, 2048, 836, 542, 691, 1662, 1716, 1953, 1355, 2039, 355, 579, 1285, 1523, 1964, 1230, 334, 2071, 1984, 418, 1152, 971, 367, 859, 352, 461, 1960, 838, 510, 2096, 739, 518, 2229, 87, 2192, 1062, 86, 652, 2089, 2166, 357, 204, 133, 2196, 616, 15, 2034, 2058, 1981, 2082, 1897, 906, 1754, 2031, 1419, 462, 521, 1305, 1059, 136, 1945, 1697, 85, 1049, 1347, 167, 2025, 584, 187, 582, 142, 1109, 1277, 1943, 144, 1470, 489, 127, 1298, 423, 1257, 1088, 2245, 2183, 1682, 975, 1644, 109, 562, 1530, 2060, 516, 441, 1695, 2178, 2120, 663, 563, 1774, 1706, 318, 1067, 615, 2179, 908, 947, 1651, 2291, 1688, 1596, 2292, 113, 681, 1369, 2239, 938, 1278, 856, 1128, 1817, 630, 10, 1998, 1512, 2038, 1502, 311, 32, 2251, 2221, 151, 1663, 338, 1430, 512, 1111, 261, 1489, 980, 1417, 320, 591, 1398, 1299, 765, 1976, 1545, 901, 2232, 697, 786, 1364, 477, 569, 656, 235, 3, 1531, 1542, 420, 2103, 967, 1385, 376, 2293, 1806, 1454, 114, 1600, 741, 898, 1491, 645, 1162, 917, 1449, 1180, 2124, 1877, 2207, 935, 522, 1979, 546, 722, 501, 309, 1148, 1602, 707, 2216, 982, 366, 442, 2242, 480, 846, 433, 95, 1405, 1679, 59, 123, 1713, 1097, 1381, 868, 1451, 606, 1509, 1185, 874, 858, 1245, 2282, 1922, 728, 1203, 1938, 2203, 1130, 1604, 1361, 13, 2074, 108, 421, 2017, 814, 714, 1592, 1224, 2160, 1744, 754, 1869, 1029, 2255, 219, 2152, 1342, 1803, 419, 94, 655, 1764, 1406, 643, 709, 83, 264, 1022, 315, 1515, 1413, 847, 2008, 2141, 902, 817, 2230, 886, 583, 1687, 1835, 1252, 1577, 1553, 1259, 469, 1894, 2053, 445, 576, 1718, 1933, 2109, 1288, 1787, 985, 2122, 497, 2294, 226, 1959, 379, 1861, 1629, 51, 1560, 1292, 1699, 1711, 390, 1950, 782, 2247, 669, 719, 1075, 1306, 1141, 448, 1315, 2274, 89, 586, 2123, 365, 515, 1639, 552, 1101, 285, 1209, 1770, 688, 2003, 1626, 693, 571, 1204, 1694, 700, 1065, 88, 92, 658, 1384, 788, 1631, 1828, 387, 2149, 1092, 775, 2153, 1516, 20, 1708, 1999, 2111, 1233, 574, 1242, 1548, 2214, 682, 1586, 2250, 346, 1254, 802, 27, 473, 766, 176, 2265, 824, 2019, 50, 1822, 1150, 1921, 905, 1265, 2172, 1248, 1334, 1898, 575, 1743, 2266, 1359, 429, 1925, 329, 2147, 2080, 1249, 399, 322, 660, 2032, 48, 299, 1696, 1742, 965, 595, 1767, 2050, 2049, 1087, 549, 1079, 12, 1942, 1260, 228, 770, 752, 337, 263, 1620, 2115, 1731, 716, 1615, 2219, 1863, 1227, 111, 403, 99, 557, 222, 257, 1330, 2231, 1422, 271, 2065, 1331, 1907, 625, 541, 491, 2098, 1704, 977, 1749, 2168, 806, 530, 1838, 1253, 922, 612, 2088, 256, 290, 8, 1567, 431, 1741, 1450, 731, 1328, 2113, 2180, 699, 1920, 613, 388, 624, 1727, 1244, 1484, 1352, 1963, 1536, 1428, 907, 1852, 1788, 1108, 1378, 946, 696, 1834, 1923, 281, 1263, 1433, 2086, 844, 2295, 580, 1755, 1471, 69, 1121, 871, 1655, 1667, 308, 2296, 1628, 634, 437, 1968, 1692, 537, 1425, 1528, 1595, 2253, 247, 983, 117, 1864, 39, 930, 895, 771, 1556, 1149, 1992, 1151, 1733, 1349, 306, 768, 1978, 560, 1559, 759, 638, 66, 210, 1459, 1927, 35, 454, 1948, 81, 1614, 1090, 1775, 578, 2158, 1624, 654, 1279, 416, 236, 2066, 2297, 2271, 181, 994, 2056, 1439, 1184, 1321, 1135, 1937, 157, 2236, 223, 1481, 1569, 1819, 2191, 349, 1813, 1404, 503, 1139, 189, 2237, 356, 1014, 120, 2222, 500, 1878, 377, 1499, 531, 948, 148, 1609, 1543, 1131, 1211, 718, 1473, 1668, 2193, 1032, 1635, 307, 1215, 1893, 2095, 230, 1375, 692, 185, 1796, 543, 1924, 1217, 720, 1272, 214, 1154, 422, 1544, 2260, 957, 511, 749, 996, 880, 1010, 1326, 1030, 49, 1820, 400, 1157, 1888, 1286, 2209, 603, 216, 30, 706, 928, 361, 61, 1868, 1525, 829, 438, 1590, 628, 1064, 1816, 747, 1690, 163, 1269, 213, 1511, 1722, 1147, 2093, 890, 1550, 138, 2218, 2157, 950, 1183, 1117, 1917, 277, 664, 679, 912, 2106, 1238, 2023, 1508, 725, 1376, 408, 2176, 533, 955, 672, 757, 205, 1673, 773, 577, 16, 1005, 1387, 487, 1309, 937, 1957, 1132, 1023, 746, 1268, 1170, 1402, 155, 529, 1642, 1039, 1939, 2061, 1145, 2107, 1155, 784, 2162, 1831, 1903, 1808, 2184, 2094, 2261, 932, 1351, 28, 1114, 1118, 1143, 761, 1250, 196, 1, 459, 1356, 540, 1995, 1654, 2279, 974, 787, 1003, 864, 1036, 2182, 1256, 1320, 274, 43, 2144, 627, 1672, 661, 1540, 158, 373, 1416, 1954, 1866, 1649, 173, 411, 2171, 737, 544, 2000, 1318, 743, 2028, 2226, 1527, 581, 2269, 690, 2277, 828, 554, 1110, 1084, 239, 215, 1273, 2244, 2276, 145, 392, 2154, 2138, 156, 1761, 90, 861, 1399, 842, 1322, 2283, 297, 1438, 434, 1236, 813, 1549, 1967, 255, 2285, 372, 587, 553, 460, 101, 1448, 945, 1583, 1562, 1875, 1986, 2035, 1581, 1989, 1052, 1946, 1830, 2006, 1395, 1054, 272, 1790, 1219, 703, 467, 1666, 1339, 1500, 2248, 1854, 293, 1440, 1941, 2151, 1522, 798, 1725, 1501, 1392, 1652, 840, 820, 468, 333, 1876, 1858, 2249, 336, 2206, 1518, 991, 1811, 762, 559, 60, 1344, 900, 1445, 1715, 998, 2067, 1177, 9, 2174, 1122, 380, 1613, 1420, 631, 1000, 733, 243, 1363, 1517, 283, 1134, 300, 1013, 1187, 229, 978, 1431, 1400, 2286, 289, 1009, 593, 2016, 1786, 990, 1086, 1140, 1019, 909, 1174, 324, 1538, 212, 1181, 1469, 923, 523, 1452, 827, 1323, 2110, 2105, 1207, 1826, 1231, 312, 348, 1373, 80, 426, 1301, 878, 1532, 1267, 199, 903, 1780, 789, 849, 995, 875, 1935, 602, 646, 2, 1494, 1784, 1243, 1936, 1633, 232, 527, 2262, 1098, 1403, 1338, 590, 1640, 1168, 1724, 1507, 852, 2268, 610, 635, 1610, 1601, 596, 671, 970, 993, 1966, 2102, 1847, 1290, 276, 474, 202, 327, 1902, 1208, 1444, 2012, 853, 1723, 147, 1228, 414, 1071, 268, 640, 1534, 370, 2064, 1357, 556, 1520, 1849, 1857, 744, 1564, 1240, 695, 507, 496, 1201, 1035, 1949, 1934, 1089, 2225, 1366, 286, 2227, 740, 1060, 2146, 1424, 465, 211, 854, 165, 1840, 177, 2298, 1504, 675, 837, 1095, 42, 1205, 484, 2070, 1612, 1845, 1997, 604, 2213, 2130, 1085, 1354, 513, 599, 107, 1524, 1669, 1397, 103, 2240, 490, 47, 1993, 252, 588, 1825, 742, 1276, 525, 763, 1837, 629, 894, 1580, 2005, 1618, 1589, 979, 777, 790, 104, 1519, 1824, 1498, 1247, 1568, 296, 1239, 1588, 608, 34, 729, 2220, 807, 294, 1222, 505, 2305, 1914, 674, 57, 618, 889, 1951, 84, 2200, 2030, 1879, 385, 1179, 973, 1915, 125, 1066, 1220, 2246, 485, 1271, 456, 1892, 676, 988, 471, 14, 1164, 1304, 1380, 1526, 1192, 404, 1884, 952, 893, 24, 2212, 162, 924, 959, 317, 65, 284, 1116, 1040, 573, 1765, 913, 539, 551, 2169, 1576, 811, 2134, 1191, 2114, 1463, 220, 1142, 1678, 1332, 2224, 986, 668, 1346, 154, 1983, 1717, 792, 1107, 1234, 1120, 2040, 1163, 940, 1103, 882, 262, 1407, 1510, 685, 245, 561, 1691, 72, 1284, 1028, 1778, 1546, 760, 949, 1465, 1367, 1461, 1630, 1533, 1955, 246, 1617, 1776, 2015, 1730, 1990, 1658, 1867, 680, 2062, 209, 961, 193, 1106, 1169, 1693, 1074, 819, 444, 1435, 1885, 1782, 269, 2223, 1597, 1213, 717, 1802, 1374, 2055, 2077, 2267, 1756, 1462, 2076, 748, 2104, 275, 447, 509, 1493, 1129, 1584, 1270, 1969, 2101, 1807, 1044, 2156, 248, 227, 1178, 519, 1821, 1607, 2198, 115, 797, 452, 342, 449, 1443, 200, 2047, 161, 1175, 2135, 328, 1769, 1472, 812, 1393, 266, 1909, 1734, 2234, 1970, 1947, 1159, 1193, 1700, 1477, 2264, 1726, 547, 77, 1091, 565, 1386, 1841, 1794, 704, 179, 755, 1991, 1076, 1919, 319, 354, 1246, 314, 38, 972, 427, 1833, 171, 1410, 1750, 457, 1045, 1758, 1800, 396, 194, 1611, 287, 956, 249, 776, 2073, 1912, 1280, 1952, 1335, 198, 2002, 2128, 398, 1100, 1008, 915, 1661, 1911, 705, 2211, 1046, 425, 1895, 121, 1274, 424, 470, 780, 1890, 2270, 1480, 570, 237, 238, 1940, 1283, 1763, 1647, 2241, 558, 36, 415, 195, 2121, 506, 1608, 2300, 52, 2299, 2278, 960, 1572, 954, 1412, 405, 1034, 1408, 1153, 169, 180, 620, 466, 1070, 1492, 1880, 536, 479, 622, 1396, 526, 1096, 665, 517, 2252, 2118, 673, 1119, 1636, 781, 2175, 791, 1771, 1883, 721, 476, 1012, 1069, 1038, 1729, 174, 2075, 662, 2204, 863, 178, 251, 918, 870, 152, 1732, 384, 1746, 2301, 1737, 340, 738, 1427, 393, 1853, 1237, 944, 1275, 891, 498, 1585, 428, 265, 1625, 1844, 1379, 188, 835, 391, 1575, 1762, 1757, 2045, 1460, 221, 1453, 598, 1928, 1189, 37, 1051, 1016, 1521, 1165, 2190, 1506, 2161, 785, 1973, 1541, 443, 2210, 1599, 1307, 2307, 1839, 1513, 1414, 2259, 1579, 217, 694, 1446, 2202, 1390, 2142, 1578, 848, 2155, 1906, 1047, 78, 2018, 614, 1785, 132, 1073, 1804, 881, 1146, 1020, 1972, 430, 1643, 1913, 1865, 850, 548, 2108, 857, 667, 1535, 159, 225, 841, 2021, 62, 1336, 330, 1112, 410, 822, 313, 2079
 ];
 
 
@@ -1588,247 +1672,500 @@ pub const WORDLE_VALID_WORDS: [WordleWord; NUM_WORDLE_VALID_WORDS] = [
 // i cant be bothered to figure out how to do this correctly
 #[macro_export]
 macro_rules! clues {
-	(_ _ _ _ _) => {0 as WordleClue};
-	(_ _ _ _ Y) => {1 as WordleClue};
-	(_ _ _ _ G) => {2 as WordleClue};
-	(_ _ _ Y _) => {3 as WordleClue};
-	(_ _ _ Y Y) => {4 as WordleClue};
-	(_ _ _ Y G) => {5 as WordleClue};
-	(_ _ _ G _) => {6 as WordleClue};
-	(_ _ _ G Y) => {7 as WordleClue};
-	(_ _ _ G G) => {8 as WordleClue};
-	(_ _ Y _ _) => {9 as WordleClue};
-	(_ _ Y _ Y) => {10 as WordleClue};
-	(_ _ Y _ G) => {11 as WordleClue};
-	(_ _ Y Y _) => {12 as WordleClue};
-	(_ _ Y Y Y) => {13 as WordleClue};
-	(_ _ Y Y G) => {14 as WordleClue};
-	(_ _ Y G _) => {15 as WordleClue};
-	(_ _ Y G Y) => {16 as WordleClue};
-	(_ _ Y G G) => {17 as WordleClue};
-	(_ _ G _ _) => {18 as WordleClue};
-	(_ _ G _ Y) => {19 as WordleClue};
-	(_ _ G _ G) => {20 as WordleClue};
-	(_ _ G Y _) => {21 as WordleClue};
-	(_ _ G Y Y) => {22 as WordleClue};
-	(_ _ G Y G) => {23 as WordleClue};
-	(_ _ G G _) => {24 as WordleClue};
-	(_ _ G G Y) => {25 as WordleClue};
-	(_ _ G G G) => {26 as WordleClue};
-	(_ Y _ _ _) => {27 as WordleClue};
-	(_ Y _ _ Y) => {28 as WordleClue};
-	(_ Y _ _ G) => {29 as WordleClue};
-	(_ Y _ Y _) => {30 as WordleClue};
-	(_ Y _ Y Y) => {31 as WordleClue};
-	(_ Y _ Y G) => {32 as WordleClue};
-	(_ Y _ G _) => {33 as WordleClue};
-	(_ Y _ G Y) => {34 as WordleClue};
-	(_ Y _ G G) => {35 as WordleClue};
-	(_ Y Y _ _) => {36 as WordleClue};
-	(_ Y Y _ Y) => {37 as WordleClue};
-	(_ Y Y _ G) => {38 as WordleClue};
-	(_ Y Y Y _) => {39 as WordleClue};
-	(_ Y Y Y Y) => {40 as WordleClue};
-	(_ Y Y Y G) => {41 as WordleClue};
-	(_ Y Y G _) => {42 as WordleClue};
-	(_ Y Y G Y) => {43 as WordleClue};
-	(_ Y Y G G) => {44 as WordleClue};
-	(_ Y G _ _) => {45 as WordleClue};
-	(_ Y G _ Y) => {46 as WordleClue};
-	(_ Y G _ G) => {47 as WordleClue};
-	(_ Y G Y _) => {48 as WordleClue};
-	(_ Y G Y Y) => {49 as WordleClue};
-	(_ Y G Y G) => {50 as WordleClue};
-	(_ Y G G _) => {51 as WordleClue};
-	(_ Y G G Y) => {52 as WordleClue};
-	(_ Y G G G) => {53 as WordleClue};
-	(_ G _ _ _) => {54 as WordleClue};
-	(_ G _ _ Y) => {55 as WordleClue};
-	(_ G _ _ G) => {56 as WordleClue};
-	(_ G _ Y _) => {57 as WordleClue};
-	(_ G _ Y Y) => {58 as WordleClue};
-	(_ G _ Y G) => {59 as WordleClue};
-	(_ G _ G _) => {60 as WordleClue};
-	(_ G _ G Y) => {61 as WordleClue};
-	(_ G _ G G) => {62 as WordleClue};
-	(_ G Y _ _) => {63 as WordleClue};
-	(_ G Y _ Y) => {64 as WordleClue};
-	(_ G Y _ G) => {65 as WordleClue};
-	(_ G Y Y _) => {66 as WordleClue};
-	(_ G Y Y Y) => {67 as WordleClue};
-	(_ G Y Y G) => {68 as WordleClue};
-	(_ G Y G _) => {69 as WordleClue};
-	(_ G Y G Y) => {70 as WordleClue};
-	(_ G Y G G) => {71 as WordleClue};
-	(_ G G _ _) => {72 as WordleClue};
-	(_ G G _ Y) => {73 as WordleClue};
-	(_ G G _ G) => {74 as WordleClue};
-	(_ G G Y _) => {75 as WordleClue};
-	(_ G G Y Y) => {76 as WordleClue};
-	(_ G G Y G) => {77 as WordleClue};
-	(_ G G G _) => {78 as WordleClue};
-	(_ G G G Y) => {79 as WordleClue};
-	(_ G G G G) => {80 as WordleClue};
-	(Y _ _ _ _) => {81 as WordleClue};
-	(Y _ _ _ Y) => {82 as WordleClue};
-	(Y _ _ _ G) => {83 as WordleClue};
-	(Y _ _ Y _) => {84 as WordleClue};
-	(Y _ _ Y Y) => {85 as WordleClue};
-	(Y _ _ Y G) => {86 as WordleClue};
-	(Y _ _ G _) => {87 as WordleClue};
-	(Y _ _ G Y) => {88 as WordleClue};
-	(Y _ _ G G) => {89 as WordleClue};
-	(Y _ Y _ _) => {90 as WordleClue};
-	(Y _ Y _ Y) => {91 as WordleClue};
-	(Y _ Y _ G) => {92 as WordleClue};
-	(Y _ Y Y _) => {93 as WordleClue};
-	(Y _ Y Y Y) => {94 as WordleClue};
-	(Y _ Y Y G) => {95 as WordleClue};
-	(Y _ Y G _) => {96 as WordleClue};
-	(Y _ Y G Y) => {97 as WordleClue};
-	(Y _ Y G G) => {98 as WordleClue};
-	(Y _ G _ _) => {99 as WordleClue};
-	(Y _ G _ Y) => {100 as WordleClue};
-	(Y _ G _ G) => {101 as WordleClue};
-	(Y _ G Y _) => {102 as WordleClue};
-	(Y _ G Y Y) => {103 as WordleClue};
-	(Y _ G Y G) => {104 as WordleClue};
-	(Y _ G G _) => {105 as WordleClue};
-	(Y _ G G Y) => {106 as WordleClue};
-	(Y _ G G G) => {107 as WordleClue};
-	(Y Y _ _ _) => {108 as WordleClue};
-	(Y Y _ _ Y) => {109 as WordleClue};
-	(Y Y _ _ G) => {110 as WordleClue};	
-	(Y Y _ Y _) => {111 as WordleClue};
-	(Y Y _ Y Y) => {112 as WordleClue};
-	(Y Y _ Y G) => {113 as WordleClue};
-	(Y Y _ G _) => {114 as WordleClue};
-	(Y Y _ G Y) => {115 as WordleClue};
-	(Y Y _ G G) => {116 as WordleClue};
-	(Y Y Y _ _) => {117 as WordleClue};
-	(Y Y Y _ Y) => {118 as WordleClue};
-	(Y Y Y _ G) => {119 as WordleClue};
-	(Y Y Y Y _) => {120 as WordleClue};
-	(Y Y Y Y Y) => {121 as WordleClue};
-	(Y Y Y Y G) => {122 as WordleClue};
-	(Y Y Y G _) => {123 as WordleClue};
-	(Y Y Y G Y) => {124 as WordleClue};
-	(Y Y Y G G) => {125 as WordleClue};
-	(Y Y G _ _) => {126 as WordleClue};
-	(Y Y G _ Y) => {127 as WordleClue};
-	(Y Y G _ G) => {128 as WordleClue};
-	(Y Y G Y _) => {129 as WordleClue};
-	(Y Y G Y Y) => {130 as WordleClue};
-	(Y Y G Y G) => {131 as WordleClue};
-	(Y Y G G _) => {132 as WordleClue};
-	(Y Y G G Y) => {133 as WordleClue};
-	(Y Y G G G) => {134 as WordleClue};
-	(Y G _ _ _) => {135 as WordleClue};
-	(Y G _ _ Y) => {136 as WordleClue};
-	(Y G _ _ G) => {137 as WordleClue};
-	(Y G _ Y _) => {138 as WordleClue};
-	(Y G _ Y Y) => {139 as WordleClue};
-	(Y G _ Y G) => {140 as WordleClue};
-	(Y G _ G _) => {141 as WordleClue};
-	(Y G _ G Y) => {142 as WordleClue};
-	(Y G _ G G) => {143 as WordleClue};
-	(Y G Y _ _) => {144 as WordleClue};
-	(Y G Y _ Y) => {145 as WordleClue};
-	(Y G Y _ G) => {146 as WordleClue};
-	(Y G Y Y _) => {147 as WordleClue};
-	(Y G Y Y Y) => {148 as WordleClue};
-	(Y G Y Y G) => {149 as WordleClue};
-	(Y G Y G _) => {150 as WordleClue};
-	(Y G Y G Y) => {151 as WordleClue};
-	(Y G Y G G) => {152 as WordleClue};
-	(Y G G _ _) => {153 as WordleClue};
-	(Y G G _ Y) => {154 as WordleClue};
-	(Y G G _ G) => {155 as WordleClue};
-	(Y G G Y _) => {156 as WordleClue};
-	(Y G G Y Y) => {157 as WordleClue};
-	(Y G G Y G) => {158 as WordleClue};
-	(Y G G G _) => {159 as WordleClue};
-	(Y G G G Y) => {160 as WordleClue};
-	(Y G G G G) => {161 as WordleClue};
-	(G _ _ _ _) => {162 as WordleClue};
-	(G _ _ _ Y) => {163 as WordleClue};
-	(G _ _ _ G) => {164 as WordleClue};
-	(G _ _ Y _) => {165 as WordleClue};
-	(G _ _ Y Y) => {166 as WordleClue};
-	(G _ _ Y G) => {167 as WordleClue};
-	(G _ _ G _) => {168 as WordleClue};
-	(G _ _ G Y) => {169 as WordleClue};
-	(G _ _ G G) => {170 as WordleClue};
-	(G _ Y _ _) => {171 as WordleClue};
-	(G _ Y _ Y) => {172 as WordleClue};
-	(G _ Y _ G) => {173 as WordleClue};
-	(G _ Y Y _) => {174 as WordleClue};
-	(G _ Y Y Y) => {175 as WordleClue};
-	(G _ Y Y G) => {176 as WordleClue};
-	(G _ Y G _) => {177 as WordleClue};
-	(G _ Y G Y) => {178 as WordleClue};
-	(G _ Y G G) => {179 as WordleClue};
-	(G _ G _ _) => {180 as WordleClue};
-	(G _ G _ Y) => {181 as WordleClue};
-	(G _ G _ G) => {182 as WordleClue};
-	(G _ G Y _) => {183 as WordleClue};
-	(G _ G Y Y) => {184 as WordleClue};
-	(G _ G Y G) => {185 as WordleClue};
-	(G _ G G _) => {186 as WordleClue};
-	(G _ G G Y) => {187 as WordleClue};
-	(G _ G G G) => {188 as WordleClue};
-	(G Y _ _ _) => {189 as WordleClue};
-	(G Y _ _ Y) => {190 as WordleClue};
-	(G Y _ _ G) => {191 as WordleClue};
-	(G Y _ Y _) => {192 as WordleClue};
-	(G Y _ Y Y) => {193 as WordleClue};
-	(G Y _ Y G) => {194 as WordleClue};
-	(G Y _ G _) => {195 as WordleClue};
-	(G Y _ G Y) => {196 as WordleClue};
-	(G Y _ G G) => {197 as WordleClue};
-	(G Y Y _ _) => {198 as WordleClue};
-	(G Y Y _ Y) => {199 as WordleClue};
-	(G Y Y _ G) => {200 as WordleClue};
-	(G Y Y Y _) => {201 as WordleClue};
-	(G Y Y Y Y) => {202 as WordleClue};
-	(G Y Y Y G) => {203 as WordleClue};
-	(G Y Y G _) => {204 as WordleClue};
-	(G Y Y G Y) => {205 as WordleClue};
-	(G Y Y G G) => {206 as WordleClue};
-	(G Y G _ _) => {207 as WordleClue};
-	(G Y G _ Y) => {208 as WordleClue};
-	(G Y G _ G) => {209 as WordleClue};
-	(G Y G Y _) => {210 as WordleClue};
-	(G Y G Y Y) => {211 as WordleClue};
-	(G Y G Y G) => {212 as WordleClue};
-	(G Y G G _) => {213 as WordleClue};
-	(G Y G G Y) => {214 as WordleClue};
-	(G Y G G G) => {215 as WordleClue};
-	(G G _ _ _) => {216 as WordleClue};
-	(G G _ _ Y) => {217 as WordleClue};
-	(G G _ _ G) => {218 as WordleClue};
-	(G G _ Y _) => {219 as WordleClue};
-	(G G _ Y Y) => {220 as WordleClue};
-	(G G _ Y G) => {221 as WordleClue};
-	(G G _ G _) => {222 as WordleClue};
-	(G G _ G Y) => {223 as WordleClue};
-	(G G _ G G) => {224 as WordleClue};
-	(G G Y _ _) => {225 as WordleClue};
-	(G G Y _ Y) => {226 as WordleClue};
-	(G G Y _ G) => {227 as WordleClue};
-	(G G Y Y _) => {228 as WordleClue};
-	(G G Y Y Y) => {229 as WordleClue};
-	(G G Y Y G) => {230 as WordleClue};
-	(G G Y G _) => {231 as WordleClue};
-	(G G Y G Y) => {232 as WordleClue};
-	(G G Y G G) => {233 as WordleClue};
-	(G G G _ _) => {234 as WordleClue};
-	(G G G _ Y) => {235 as WordleClue};
-	(G G G _ G) => {236 as WordleClue};
-	(G G G Y _) => {237 as WordleClue};
-	(G G G Y Y) => {238 as WordleClue};
-	(G G G Y G) => {239 as WordleClue};
-	(G G G G _) => {240 as WordleClue};
-	(G G G G Y) => {241 as WordleClue};
-	(G G G G G) => {242 as WordleClue};
+	(_ _ _ _ _) => {WordleClue::new(0)};
+	(_ _ _ _ Y) => {WordleClue::new(1)};
+	(_ _ _ _ G) => {WordleClue::new(2)};
+	(_ _ _ Y _) => {WordleClue::new(3)};
+	(_ _ _ Y Y) => {WordleClue::new(4)};
+	(_ _ _ Y G) => {WordleClue::new(5)};
+	(_ _ _ G _) => {WordleClue::new(6)};
+	(_ _ _ G Y) => {WordleClue::new(7)};
+	(_ _ _ G G) => {WordleClue::new(8)};
+	(_ _ Y _ _) => {WordleClue::new(9)};
+	(_ _ Y _ Y) => {WordleClue::new(10)};
+	(_ _ Y _ G) => {WordleClue::new(11)};
+	(_ _ Y Y _) => {WordleClue::new(12)};
+	(_ _ Y Y Y) => {WordleClue::new(13)};
+	(_ _ Y Y G) => {WordleClue::new(14)};
+	(_ _ Y G _) => {WordleClue::new(15)};
+	(_ _ Y G Y) => {WordleClue::new(16)};
+	(_ _ Y G G) => {WordleClue::new(17)};
+	(_ _ G _ _) => {WordleClue::new(18)};
+	(_ _ G _ Y) => {WordleClue::new(19)};
+	(_ _ G _ G) => {WordleClue::new(20)};
+	(_ _ G Y _) => {WordleClue::new(21)};
+	(_ _ G Y Y) => {WordleClue::new(22)};
+	(_ _ G Y G) => {WordleClue::new(23)};
+	(_ _ G G _) => {WordleClue::new(24)};
+	(_ _ G G Y) => {WordleClue::new(25)};
+	(_ _ G G G) => {WordleClue::new(26)};
+	(_ Y _ _ _) => {WordleClue::new(27)};
+	(_ Y _ _ Y) => {WordleClue::new(28)};
+	(_ Y _ _ G) => {WordleClue::new(29)};
+	(_ Y _ Y _) => {WordleClue::new(30)};
+	(_ Y _ Y Y) => {WordleClue::new(31)};
+	(_ Y _ Y G) => {WordleClue::new(32)};
+	(_ Y _ G _) => {WordleClue::new(33)};
+	(_ Y _ G Y) => {WordleClue::new(34)};
+	(_ Y _ G G) => {WordleClue::new(35)};
+	(_ Y Y _ _) => {WordleClue::new(36)};
+	(_ Y Y _ Y) => {WordleClue::new(37)};
+	(_ Y Y _ G) => {WordleClue::new(38)};
+	(_ Y Y Y _) => {WordleClue::new(39)};
+	(_ Y Y Y Y) => {WordleClue::new(40)};
+	(_ Y Y Y G) => {WordleClue::new(41)};
+	(_ Y Y G _) => {WordleClue::new(42)};
+	(_ Y Y G Y) => {WordleClue::new(43)};
+	(_ Y Y G G) => {WordleClue::new(44)};
+	(_ Y G _ _) => {WordleClue::new(45)};
+	(_ Y G _ Y) => {WordleClue::new(46)};
+	(_ Y G _ G) => {WordleClue::new(47)};
+	(_ Y G Y _) => {WordleClue::new(48)};
+	(_ Y G Y Y) => {WordleClue::new(49)};
+	(_ Y G Y G) => {WordleClue::new(50)};
+	(_ Y G G _) => {WordleClue::new(51)};
+	(_ Y G G Y) => {WordleClue::new(52)};
+	(_ Y G G G) => {WordleClue::new(53)};
+	(_ G _ _ _) => {WordleClue::new(54)};
+	(_ G _ _ Y) => {WordleClue::new(55)};
+	(_ G _ _ G) => {WordleClue::new(56)};
+	(_ G _ Y _) => {WordleClue::new(57)};
+	(_ G _ Y Y) => {WordleClue::new(58)};
+	(_ G _ Y G) => {WordleClue::new(59)};
+	(_ G _ G _) => {WordleClue::new(60)};
+	(_ G _ G Y) => {WordleClue::new(61)};
+	(_ G _ G G) => {WordleClue::new(62)};
+	(_ G Y _ _) => {WordleClue::new(63)};
+	(_ G Y _ Y) => {WordleClue::new(64)};
+	(_ G Y _ G) => {WordleClue::new(65)};
+	(_ G Y Y _) => {WordleClue::new(66)};
+	(_ G Y Y Y) => {WordleClue::new(67)};
+	(_ G Y Y G) => {WordleClue::new(68)};
+	(_ G Y G _) => {WordleClue::new(69)};
+	(_ G Y G Y) => {WordleClue::new(70)};
+	(_ G Y G G) => {WordleClue::new(71)};
+	(_ G G _ _) => {WordleClue::new(72)};
+	(_ G G _ Y) => {WordleClue::new(73)};
+	(_ G G _ G) => {WordleClue::new(74)};
+	(_ G G Y _) => {WordleClue::new(75)};
+	(_ G G Y Y) => {WordleClue::new(76)};
+	(_ G G Y G) => {WordleClue::new(77)};
+	(_ G G G _) => {WordleClue::new(78)};
+	(_ G G G Y) => {WordleClue::new(79)};
+	(_ G G G G) => {WordleClue::new(80)};
+	(Y _ _ _ _) => {WordleClue::new(81)};
+	(Y _ _ _ Y) => {WordleClue::new(82)};
+	(Y _ _ _ G) => {WordleClue::new(83)};
+	(Y _ _ Y _) => {WordleClue::new(84)};
+	(Y _ _ Y Y) => {WordleClue::new(85)};
+	(Y _ _ Y G) => {WordleClue::new(86)};
+	(Y _ _ G _) => {WordleClue::new(87)};
+	(Y _ _ G Y) => {WordleClue::new(88)};
+	(Y _ _ G G) => {WordleClue::new(89)};
+	(Y _ Y _ _) => {WordleClue::new(90)};
+	(Y _ Y _ Y) => {WordleClue::new(91)};
+	(Y _ Y _ G) => {WordleClue::new(92)};
+	(Y _ Y Y _) => {WordleClue::new(93)};
+	(Y _ Y Y Y) => {WordleClue::new(94)};
+	(Y _ Y Y G) => {WordleClue::new(95)};
+	(Y _ Y G _) => {WordleClue::new(96)};
+	(Y _ Y G Y) => {WordleClue::new(97)};
+	(Y _ Y G G) => {WordleClue::new(98)};
+	(Y _ G _ _) => {WordleClue::new(99)};
+	(Y _ G _ Y) => {WordleClue::new(100)};
+	(Y _ G _ G) => {WordleClue::new(101)};
+	(Y _ G Y _) => {WordleClue::new(102)};
+	(Y _ G Y Y) => {WordleClue::new(103)};
+	(Y _ G Y G) => {WordleClue::new(104)};
+	(Y _ G G _) => {WordleClue::new(105)};
+	(Y _ G G Y) => {WordleClue::new(106)};
+	(Y _ G G G) => {WordleClue::new(107)};
+	(Y Y _ _ _) => {WordleClue::new(108)};
+	(Y Y _ _ Y) => {WordleClue::new(109)};
+	(Y Y _ _ G) => {WordleClue::new(110)};	
+	(Y Y _ Y _) => {WordleClue::new(111)};
+	(Y Y _ Y Y) => {WordleClue::new(112)};
+	(Y Y _ Y G) => {WordleClue::new(113)};
+	(Y Y _ G _) => {WordleClue::new(114)};
+	(Y Y _ G Y) => {WordleClue::new(115)};
+	(Y Y _ G G) => {WordleClue::new(116)};
+	(Y Y Y _ _) => {WordleClue::new(117)};
+	(Y Y Y _ Y) => {WordleClue::new(118)};
+	(Y Y Y _ G) => {WordleClue::new(119)};
+	(Y Y Y Y _) => {WordleClue::new(120)};
+	(Y Y Y Y Y) => {WordleClue::new(121)};
+	(Y Y Y Y G) => {WordleClue::new(122)};
+	(Y Y Y G _) => {WordleClue::new(123)};
+	(Y Y Y G Y) => {WordleClue::new(124)};
+	(Y Y Y G G) => {WordleClue::new(125)};
+	(Y Y G _ _) => {WordleClue::new(126)};
+	(Y Y G _ Y) => {WordleClue::new(127)};
+	(Y Y G _ G) => {WordleClue::new(128)};
+	(Y Y G Y _) => {WordleClue::new(129)};
+	(Y Y G Y Y) => {WordleClue::new(130)};
+	(Y Y G Y G) => {WordleClue::new(131)};
+	(Y Y G G _) => {WordleClue::new(132)};
+	(Y Y G G Y) => {WordleClue::new(133)};
+	(Y Y G G G) => {WordleClue::new(134)};
+	(Y G _ _ _) => {WordleClue::new(135)};
+	(Y G _ _ Y) => {WordleClue::new(136)};
+	(Y G _ _ G) => {WordleClue::new(137)};
+	(Y G _ Y _) => {WordleClue::new(138)};
+	(Y G _ Y Y) => {WordleClue::new(139)};
+	(Y G _ Y G) => {WordleClue::new(140)};
+	(Y G _ G _) => {WordleClue::new(141)};
+	(Y G _ G Y) => {WordleClue::new(142)};
+	(Y G _ G G) => {WordleClue::new(143)};
+	(Y G Y _ _) => {WordleClue::new(144)};
+	(Y G Y _ Y) => {WordleClue::new(145)};
+	(Y G Y _ G) => {WordleClue::new(146)};
+	(Y G Y Y _) => {WordleClue::new(147)};
+	(Y G Y Y Y) => {WordleClue::new(148)};
+	(Y G Y Y G) => {WordleClue::new(149)};
+	(Y G Y G _) => {WordleClue::new(150)};
+	(Y G Y G Y) => {WordleClue::new(151)};
+	(Y G Y G G) => {WordleClue::new(152)};
+	(Y G G _ _) => {WordleClue::new(153)};
+	(Y G G _ Y) => {WordleClue::new(154)};
+	(Y G G _ G) => {WordleClue::new(155)};
+	(Y G G Y _) => {WordleClue::new(156)};
+	(Y G G Y Y) => {WordleClue::new(157)};
+	(Y G G Y G) => {WordleClue::new(158)};
+	(Y G G G _) => {WordleClue::new(159)};
+	(Y G G G Y) => {WordleClue::new(160)};
+	(Y G G G G) => {WordleClue::new(161)};
+	(G _ _ _ _) => {WordleClue::new(162)};
+	(G _ _ _ Y) => {WordleClue::new(163)};
+	(G _ _ _ G) => {WordleClue::new(164)};
+	(G _ _ Y _) => {WordleClue::new(165)};
+	(G _ _ Y Y) => {WordleClue::new(166)};
+	(G _ _ Y G) => {WordleClue::new(167)};
+	(G _ _ G _) => {WordleClue::new(168)};
+	(G _ _ G Y) => {WordleClue::new(169)};
+	(G _ _ G G) => {WordleClue::new(170)};
+	(G _ Y _ _) => {WordleClue::new(171)};
+	(G _ Y _ Y) => {WordleClue::new(172)};
+	(G _ Y _ G) => {WordleClue::new(173)};
+	(G _ Y Y _) => {WordleClue::new(174)};
+	(G _ Y Y Y) => {WordleClue::new(175)};
+	(G _ Y Y G) => {WordleClue::new(176)};
+	(G _ Y G _) => {WordleClue::new(177)};
+	(G _ Y G Y) => {WordleClue::new(178)};
+	(G _ Y G G) => {WordleClue::new(179)};
+	(G _ G _ _) => {WordleClue::new(180)};
+	(G _ G _ Y) => {WordleClue::new(181)};
+	(G _ G _ G) => {WordleClue::new(182)};
+	(G _ G Y _) => {WordleClue::new(183)};
+	(G _ G Y Y) => {WordleClue::new(184)};
+	(G _ G Y G) => {WordleClue::new(185)};
+	(G _ G G _) => {WordleClue::new(186)};
+	(G _ G G Y) => {WordleClue::new(187)};
+	(G _ G G G) => {WordleClue::new(188)};
+	(G Y _ _ _) => {WordleClue::new(189)};
+	(G Y _ _ Y) => {WordleClue::new(190)};
+	(G Y _ _ G) => {WordleClue::new(191)};
+	(G Y _ Y _) => {WordleClue::new(192)};
+	(G Y _ Y Y) => {WordleClue::new(193)};
+	(G Y _ Y G) => {WordleClue::new(194)};
+	(G Y _ G _) => {WordleClue::new(195)};
+	(G Y _ G Y) => {WordleClue::new(196)};
+	(G Y _ G G) => {WordleClue::new(197)};
+	(G Y Y _ _) => {WordleClue::new(198)};
+	(G Y Y _ Y) => {WordleClue::new(199)};
+	(G Y Y _ G) => {WordleClue::new(200)};
+	(G Y Y Y _) => {WordleClue::new(201)};
+	(G Y Y Y Y) => {WordleClue::new(202)};
+	(G Y Y Y G) => {WordleClue::new(203)};
+	(G Y Y G _) => {WordleClue::new(204)};
+	(G Y Y G Y) => {WordleClue::new(205)};
+	(G Y Y G G) => {WordleClue::new(206)};
+	(G Y G _ _) => {WordleClue::new(207)};
+	(G Y G _ Y) => {WordleClue::new(208)};
+	(G Y G _ G) => {WordleClue::new(209)};
+	(G Y G Y _) => {WordleClue::new(210)};
+	(G Y G Y Y) => {WordleClue::new(211)};
+	(G Y G Y G) => {WordleClue::new(212)};
+	(G Y G G _) => {WordleClue::new(213)};
+	(G Y G G Y) => {WordleClue::new(214)};
+	(G Y G G G) => {WordleClue::new(215)};
+	(G G _ _ _) => {WordleClue::new(216)};
+	(G G _ _ Y) => {WordleClue::new(217)};
+	(G G _ _ G) => {WordleClue::new(218)};
+	(G G _ Y _) => {WordleClue::new(219)};
+	(G G _ Y Y) => {WordleClue::new(220)};
+	(G G _ Y G) => {WordleClue::new(221)};
+	(G G _ G _) => {WordleClue::new(222)};
+	(G G _ G Y) => {WordleClue::new(223)};
+	(G G _ G G) => {WordleClue::new(224)};
+	(G G Y _ _) => {WordleClue::new(225)};
+	(G G Y _ Y) => {WordleClue::new(226)};
+	(G G Y _ G) => {WordleClue::new(227)};
+	(G G Y Y _) => {WordleClue::new(228)};
+	(G G Y Y Y) => {WordleClue::new(229)};
+	(G G Y Y G) => {WordleClue::new(230)};
+	(G G Y G _) => {WordleClue::new(231)};
+	(G G Y G Y) => {WordleClue::new(232)};
+	(G G Y G G) => {WordleClue::new(233)};
+	(G G G _ _) => {WordleClue::new(234)};
+	(G G G _ Y) => {WordleClue::new(235)};
+	(G G G _ G) => {WordleClue::new(236)};
+	(G G G Y _) => {WordleClue::new(237)};
+	(G G G Y Y) => {WordleClue::new(238)};
+	(G G G Y G) => {WordleClue::new(239)};
+	(G G G G _) => {WordleClue::new(240)};
+	(G G G G Y) => {WordleClue::new(241)};
+	(G G G G G) => {WordleClue::new(242)};
+}
+
+impl WordleClue {
+	pub const fn sum_of_base3_digits(self) -> u8 {
+		match self {
+			// if youre reading this ur a nerd and shouldnt complain about this absolute horror
+			// TODO: check these cuz i used github copilot to write all this after 15 or so
+			WordleClue(0) => 0, // 0t00000
+			WordleClue(1) => 1, // 0t00001
+			WordleClue(2) => 2, // 0t00002
+			WordleClue(3) => 1, // 0t00010
+			WordleClue(4) => 2, // 0t00011
+			WordleClue(5) => 3, // 0t00012
+			WordleClue(6) => 2, // 0t00020
+			WordleClue(7) => 3, // 0t00021
+			WordleClue(8) => 4, // 0t00022
+			WordleClue(9) => 1, // 0t00100
+			WordleClue(10) => 2, // 0t00101
+			WordleClue(11) => 3, // 0t00102
+			WordleClue(12) => 2, // 0t00110
+			WordleClue(13) => 3, // 0t00111
+			WordleClue(14) => 4, // 0t00112
+			WordleClue(15) => 3, // 0t00120
+			WordleClue(16) => 4, // 0t00121
+			WordleClue(17) => 5, // 0t00122
+			WordleClue(18) => 2, // 0t00200
+			WordleClue(19) => 3, // 0t00201
+			WordleClue(20) => 4, // 0t00202
+			WordleClue(21) => 3, // 0t00210
+			WordleClue(22) => 4, // 0t00211
+			WordleClue(23) => 5, // 0t00212
+			WordleClue(24) => 4, // 0t00220
+			WordleClue(25) => 5, // 0t00221
+			WordleClue(26) => 6, // 0t00222
+			WordleClue(27) => 1, // 0t01000
+			WordleClue(28) => 2, // 0t01001
+			WordleClue(29) => 3, // 0t01002
+			WordleClue(30) => 2, // 0t01010
+			WordleClue(31) => 3, // 0t01011
+			WordleClue(32) => 4, // 0t01012
+			WordleClue(33) => 3, // 0t01020
+			WordleClue(34) => 4, // 0t01021
+			WordleClue(35) => 5, // 0t01022
+			WordleClue(36) => 2, // 0t01100
+			WordleClue(37) => 3, // 0t01101
+			WordleClue(38) => 4, // 0t01102
+			WordleClue(39) => 3, // 0t01110
+			WordleClue(40) => 4, // 0t01111
+			WordleClue(41) => 5, // 0t01112
+			WordleClue(42) => 4, // 0t01120
+			WordleClue(43) => 5, // 0t01121
+			WordleClue(44) => 6, // 0t01122
+			WordleClue(45) => 3, // 0t01200
+			WordleClue(46) => 4, // 0t01201
+			WordleClue(47) => 5, // 0t01202
+			WordleClue(48) => 4, // 0t01210
+			WordleClue(49) => 5, // 0t01211
+			WordleClue(50) => 6, // 0t01212
+			WordleClue(51) => 5, // 0t01220
+			WordleClue(52) => 6, // 0t01221
+			WordleClue(53) => 7, // 0t01222
+			WordleClue(54) => 2, // 0t02000
+			WordleClue(55) => 3, // 0t02001
+			WordleClue(56) => 4, // 0t02002
+			WordleClue(57) => 3, // 0t02010
+			WordleClue(58) => 4, // 0t02011
+			WordleClue(59) => 5, // 0t02012
+			WordleClue(60) => 4, // 0t02020
+			WordleClue(61) => 5, // 0t02021
+			WordleClue(62) => 6, // 0t02022
+			WordleClue(63) => 3, // 0t02100
+			WordleClue(64) => 4, // 0t02101
+			WordleClue(65) => 5, // 0t02102
+			WordleClue(66) => 4, // 0t02110
+			WordleClue(67) => 5, // 0t02111
+			WordleClue(68) => 6, // 0t02112
+			WordleClue(69) => 5, // 0t02120
+			WordleClue(70) => 6, // 0t02121
+			WordleClue(71) => 7, // 0t02122
+			WordleClue(72) => 4, // 0t02200
+			WordleClue(73) => 5, // 0t02201
+			WordleClue(74) => 6, // 0t02202
+			WordleClue(75) => 5, // 0t02210
+			WordleClue(76) => 6, // 0t02211
+			WordleClue(77) => 7, // 0t02212
+			WordleClue(78) => 6, // 0t02220
+			WordleClue(79) => 7, // 0t02221
+			WordleClue(80) => 8, // 0t02222
+			WordleClue(81) => 1, // 0t10000
+			WordleClue(82) => 2, // 0t10001
+			WordleClue(83) => 3, // 0t10002
+			WordleClue(84) => 2, // 0t10010
+			WordleClue(85) => 3, // 0t10011
+			WordleClue(86) => 4, // 0t10012
+			WordleClue(87) => 3, // 0t10020
+			WordleClue(88) => 4, // 0t10021
+			WordleClue(89) => 5, // 0t10022
+			WordleClue(90) => 2, // 0t10100
+			WordleClue(91) => 3, // 0t10101
+			WordleClue(92) => 4, // 0t10102
+			WordleClue(93) => 3, // 0t10110
+			WordleClue(94) => 4, // 0t10111
+			WordleClue(95) => 5, // 0t10112
+			WordleClue(96) => 4, // 0t10120
+			WordleClue(97) => 5, // 0t10121
+			WordleClue(98) => 6, // 0t10122
+			WordleClue(99) => 3, // 0t10200
+			WordleClue(100) => 4, // 0t10201
+			WordleClue(101) => 5, // 0t10202
+			WordleClue(102) => 4, // 0t10210
+			WordleClue(103) => 5, // 0t10211
+			WordleClue(104) => 6, // 0t10212
+			WordleClue(105) => 5, // 0t10220
+			WordleClue(106) => 6, // 0t10221
+			WordleClue(107) => 7, // 0t10222
+			WordleClue(108) => 2, // 0t11000
+			WordleClue(109) => 3, // 0t11001
+			WordleClue(110) => 4, // 0t11002
+			WordleClue(111) => 3, // 0t11010
+			WordleClue(112) => 4, // 0t11011
+			WordleClue(113) => 5, // 0t11012
+			WordleClue(114) => 4, // 0t11020
+			WordleClue(115) => 5, // 0t11021
+			WordleClue(116) => 6, // 0t11022
+			WordleClue(117) => 3, // 0t11100
+			WordleClue(118) => 4, // 0t11101
+			WordleClue(119) => 5, // 0t11102
+			WordleClue(120) => 4, // 0t11110
+			WordleClue(121) => 5, // 0t11111
+			WordleClue(122) => 6, // 0t11112
+			WordleClue(123) => 5, // 0t11120
+			WordleClue(124) => 6, // 0t11121
+			WordleClue(125) => 7, // 0t11122
+			WordleClue(126) => 4, // 0t11200
+			WordleClue(127) => 5, // 0t11201
+			WordleClue(128) => 6, // 0t11202
+			WordleClue(129) => 5, // 0t11210
+			WordleClue(130) => 6, // 0t11211
+			WordleClue(131) => 7, // 0t11212
+			WordleClue(132) => 6, // 0t11220
+			WordleClue(133) => 7, // 0t11221
+			WordleClue(134) => 8, // 0t11222
+			WordleClue(135) => 3, // 0t12000
+			WordleClue(136) => 4, // 0t12001
+			WordleClue(137) => 5, // 0t12002
+			WordleClue(138) => 4, // 0t12010
+			WordleClue(139) => 5, // 0t12011
+			WordleClue(140) => 6, // 0t12012
+			WordleClue(141) => 5, // 0t12020
+			WordleClue(142) => 6, // 0t12021
+			WordleClue(143) => 7, // 0t12022
+			WordleClue(144) => 4, // 0t12100
+			WordleClue(145) => 5, // 0t12101
+			WordleClue(146) => 6, // 0t12102
+			WordleClue(147) => 5, // 0t12110
+			WordleClue(148) => 6, // 0t12111
+			WordleClue(149) => 7, // 0t12112
+			WordleClue(150) => 6, // 0t12120
+			WordleClue(151) => 7, // 0t12121
+			WordleClue(152) => 8, // 0t12122
+			WordleClue(153) => 5, // 0t12200
+			WordleClue(154) => 6, // 0t12201
+			WordleClue(155) => 7, // 0t12202
+			WordleClue(156) => 6, // 0t12210
+			WordleClue(157) => 7, // 0t12211
+			WordleClue(158) => 8, // 0t12212
+			WordleClue(159) => 7, // 0t12220
+			WordleClue(160) => 8, // 0t12221
+			WordleClue(161) => 9, // 0t12222
+			WordleClue(162) => 2, // 0t20000
+			WordleClue(163) => 3, // 0t20001
+			WordleClue(164) => 4, // 0t20002
+			WordleClue(165) => 3, // 0t20010
+			WordleClue(166) => 4, // 0t20011
+			WordleClue(167) => 5, // 0t20012
+			WordleClue(168) => 4, // 0t20020
+			WordleClue(169) => 5, // 0t20021
+			WordleClue(170) => 6, // 0t20022
+			WordleClue(171) => 3, // 0t20100
+			WordleClue(172) => 4, // 0t20101
+			WordleClue(173) => 5, // 0t20102
+			WordleClue(174) => 4, // 0t20110
+			WordleClue(175) => 5, // 0t20111
+			WordleClue(176) => 6, // 0t20112
+			WordleClue(177) => 5, // 0t20120
+			WordleClue(178) => 6, // 0t20121
+			WordleClue(179) => 7, // 0t20122
+			WordleClue(180) => 4, // 0t20200
+			WordleClue(181) => 5, // 0t20201
+			WordleClue(182) => 6, // 0t20202
+			WordleClue(183) => 5, // 0t20210
+			WordleClue(184) => 6, // 0t20211
+			WordleClue(185) => 7, // 0t20212
+			WordleClue(186) => 6, // 0t20220
+			WordleClue(187) => 7, // 0t20221
+			WordleClue(188) => 8, // 0t20222
+			WordleClue(189) => 3, // 0t21000
+			WordleClue(190) => 4, // 0t21001
+			WordleClue(191) => 5, // 0t21002
+			WordleClue(192) => 4, // 0t21010
+			WordleClue(193) => 5, // 0t21011
+			WordleClue(194) => 6, // 0t21012
+			WordleClue(195) => 5, // 0t21020
+			WordleClue(196) => 6, // 0t21021
+			WordleClue(197) => 7, // 0t21022
+			WordleClue(198) => 4, // 0t21100
+			WordleClue(199) => 5, // 0t21101
+			WordleClue(200) => 6, // 0t21102
+			WordleClue(201) => 5, // 0t21110
+			WordleClue(202) => 6, // 0t21111
+			WordleClue(203) => 7, // 0t21112
+			WordleClue(204) => 6, // 0t21120
+			WordleClue(205) => 7, // 0t21121
+			WordleClue(206) => 8, // 0t21122
+			WordleClue(207) => 5, // 0t21200
+			WordleClue(208) => 6, // 0t21201
+			WordleClue(209) => 7, // 0t21202
+			WordleClue(210) => 6, // 0t21210
+			WordleClue(211) => 7, // 0t21211
+			WordleClue(212) => 8, // 0t21212
+			WordleClue(213) => 7, // 0t21220
+			WordleClue(214) => 8, // 0t21221
+			WordleClue(215) => 9, // 0t21222
+			WordleClue(216) => 4, // 0t22000
+			WordleClue(217) => 5, // 0t22001
+			WordleClue(218) => 6, // 0t22002
+			WordleClue(219) => 5, // 0t22010
+			WordleClue(220) => 6, // 0t22011
+			WordleClue(221) => 7, // 0t22012
+			WordleClue(222) => 6, // 0t22020
+			WordleClue(223) => 7, // 0t22021
+			WordleClue(224) => 8, // 0t22022
+			WordleClue(225) => 5, // 0t22100
+			WordleClue(226) => 6, // 0t22101
+			WordleClue(227) => 7, // 0t22102
+			WordleClue(228) => 6, // 0t22110
+			WordleClue(229) => 7, // 0t22111
+			WordleClue(230) => 8, // 0t22112
+			WordleClue(231) => 7, // 0t22120
+			WordleClue(232) => 8, // 0t22121
+			WordleClue(233) => 9, // 0t22122
+			WordleClue(234) => 6, // 0t22200
+			WordleClue(235) => 7, // 0t22201
+			WordleClue(236) => 8, // 0t22202
+			WordleClue(237) => 7, // 0t22210
+			WordleClue(238) => 8, // 0t22211
+			WordleClue(239) => 9, // 0t22212
+			WordleClue(240) => 8, // 0t22220
+			WordleClue(241) => 9, // 0t22221
+			WordleClue(242) => 10, // 0t22222
+			WordleClue(_) => unreachable!() // this can not happen bc it wont ever be >= 243
+		}
+	}
 }

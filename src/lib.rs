@@ -3,12 +3,11 @@
 // but there have been way fewer segfaults and annoying stuff like that)
 // also because i want to get better at rust cuz i lowkey suck at it :/
 
-#![feature(const_option)] // why does this need to be here if it gives me a warning??? 🤔
-#![feature(unchecked_math)]
-#![feature(const_inherent_unchecked_arith)]
+#![feature(const_option)] // why do these need to be here if they give me warnings??? 🤔
+#![feature(unchecked_math, const_inherent_unchecked_arith)]
+#![feature(rustc_attrs)]
 
-// TODO: i have no clue how to do this correctly
-include!("constants.rs");
+include!("constants.rs"); // TODO: i have no clue how to do this correctly
 
 
 // i hate myself for spending like an hour in compiler explorer optimizing this
@@ -17,7 +16,7 @@ include!("constants.rs");
 // update 2: it seems compacting the result into a single byte by 
 //           using base 3 doesnt really have any effect on speed
 // UPDATE 3: i made this faster but also it looks even shittier now lmao
-pub const fn get_clues(guess: [u8;5], answer: [u8;5]) -> u8 {
+pub const fn get_clues(guess: [u8;5], answer: [u8;5]) -> WordleClue {
 	debug_assert!(guess[0]!=0&&guess[1]!=0&&guess[2]!=0&&guess[3]!=0&&guess[4]!=0);
     debug_assert!(answer[0]!=0&&answer[1]!=0&&answer[2]!=0&&answer[3]!=0&&answer[4]!=0);
 	
@@ -116,19 +115,38 @@ pub const fn get_clues(guess: [u8;5], answer: [u8;5]) -> u8 {
         }
     }
 	
-	g + y // since these have disjoint digits in base 3, we can add them together
+	WordleClue::new(g + y) // since these have disjoint digits in base 3, we can add them together
+}
+
+
+
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WordleEntry {
+	pub guess: WordleWord, 
+	pub clue: WordleClue
+}
+
+impl WordleEntry {
+	fn matches(&self, possible_answer: WordleAnswer) -> bool {
+		// TODO: maybe optimize this?
+		get_clues(self.guess, possible_answer) == self.clue
+	}
 }
 
 
 #[derive(Default, Clone)]
 pub struct WordleState {
+	pub answer: Option<WordleAnswer>,
+	pub hard_mode: bool,
 	current_entry: usize, // "size"
 	pub entries: [Option<WordleEntry>; WORDLE_NUM_GUESSES]
 }
 
 impl WordleState {
-	pub fn new() -> WordleState {
+	pub const fn new() -> WordleState {
 		WordleState {
+			answer: None,
+			hard_mode: false,
 			current_entry: 0,
 			entries: [None; WORDLE_NUM_GUESSES]
 		}
@@ -145,16 +163,12 @@ impl WordleState {
 		self.entries[index].as_mut()
 	}
 	
-	pub const fn is_solved(&self) -> bool {
-		if self.current_entry == 0 {
-			false
-		} else {
-			self.get_entry(self.current_entry-1).unwrap().clue == 242
-		}
+	pub fn is_solved(&self) -> bool {
+		self.current_entry > 0 && self.get_entry(self.current_entry-1).unwrap().clue == clues!(G G G G G)
 	}
 	
-	pub const fn is_lost(&self) -> bool {
-		self.current_entry >= WORDLE_NUM_GUESSES
+	pub fn is_lost(&self) -> bool {
+		self.current_entry >= WORDLE_NUM_GUESSES && !self.is_solved()
 	}
 	
 	pub fn push_entry(&mut self, entry: WordleEntry) {
@@ -176,21 +190,54 @@ impl WordleState {
 	}
 	
 	pub fn is_possible_answer(&self, possible_answer: WordleAnswer) -> bool {
-		if self.current_entry == 0 {return true}
-		for entry in self {
-			if get_clues(entry.guess, possible_answer) != entry.clue {
-				return false;
-			}
+		if self.current_entry == 0 {
+			true
+		} else {
+			self.into_iter().all(|entry| entry.matches(possible_answer))
 		}
-		true
 	}
 	
 	pub fn is_possible_hardmode_word(&self, possible_word: WordleWord) -> bool {
-		todo!("is_possible_hardmode_word({})", String::from_utf8_lossy(&possible_word));
+		self.is_possible_answer(possible_word) // TODO: make this actually correct
 	}
 	
-	pub fn emoji_grid(&self) -> String {
-		todo!("emoji_grid()")
+	pub fn share_text(&self) -> String {
+		let mut text = String::new();
+		
+		text += format!("Wordle {} {}/{}{}\n",
+			match self.answer {
+				Some(answer) => WORDLE_ANSWERS.binary_search(&answer).map(
+					|x| WORDLE_ANSWER_NUMBERS[x]
+				).unwrap_or(0),
+				None => -1
+			},
+			if self.is_lost() {"X".to_string()} else {self.current_entry.to_string()},
+			WORDLE_NUM_GUESSES,
+			if self.hard_mode {"*"} else {""}
+		).as_str();
+		
+		for i in 0..self.current_entry {
+			if let Some(entry) = self.entries[i] {
+				let c = entry.clue.0;
+				
+				let (q, c) = (c / 81, c % 81);
+				text += if q == 0 {"⬜"} else if q == 1 {"🟨"} else {"🟩"};
+				
+				let (q, c) = (c / 27, c % 27);
+				text += if q == 0 {"⬜"} else if q == 1 {"🟨"} else {"🟩"};
+				
+				let (q, c) = (c / 9, c % 9);
+				text += if q == 0 {"⬜"} else if q == 1 {"🟨"} else {"🟩"};
+				
+				let (q, c) = (c / 3, c % 3);
+				text += if q == 0 {"⬜"} else if q == 1 {"🟨"} else {"🟩"};
+				text += if c == 0 {"⬜"} else if c == 1 {"🟨"} else {"🟩"};
+				
+				text += "\n";
+			}
+		}
+		
+		text
 	}
 }
 
@@ -203,7 +250,6 @@ impl std::ops::Index<usize> for WordleState {
 		self.get_entry(index).unwrap()
 	}
 }
-
 
 pub struct WordleStateIntoIterator<'a> {
 	state: &'a WordleState,
@@ -237,40 +283,11 @@ impl<'a> IntoIterator for &'a WordleState {
 }
 
 
+
 // entropy functions for WordleState
 // (NOTE: this is not rlly used anymore because it is somehow
 //        even slower than the absolute snail that is below this)
 impl WordleState {
-	pub fn get_avg_entropy(&self, word: WordleWord) -> f32 {
-		let mut dist: [u16; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
-		let mut dist_total: u16 = 0;
-		
-		// build up the distribution
-		// ______ | 182
-		// y_____ | 147
-		// _____y | 119
-		// [...]
-		for answer in WORDLE_ANSWERS {
-			if self.is_possible_answer(answer) {
-				dist[get_clues(word, answer) as usize] += 1;
-				dist_total += 1;
-			}
-		}
-		
-		// H = -sum(p*log(p))
-		//  => H = log(t) - sum(f*log(f))/t
-		
-		// TODO: theres a more idiomatic way to do this using iterators and
-		//       fold() but im pretty much just copying c code rn so idrc
-		let mut sum = 0.0;
-		for px in dist {
-			if px == 0 {continue;}
-			sum += px as f32 * (px as f32).log2();
-		}
-		
-		(dist_total as f32).log2() - sum / (dist_total as f32)
-	}
-	
 	pub fn get_max_entropy_word(&self) -> (f32, WordleWord) {
 		let mut max_entropy = 0.0;
 		let mut max_entropy_word = WordleWord::default();
@@ -284,7 +301,7 @@ impl WordleState {
 				
 				for answer in WORDLE_ANSWERS {
 					if self.is_possible_answer(answer) {
-						dist[get_clues(word, answer) as usize] += 1;
+						dist[get_clues(word, answer).as_usize()] += 1;
 						dist_total += 1;
 					}
 				}
@@ -312,7 +329,7 @@ impl WordleState {
 		
 		for word in WORDLE_ANSWERS {
 			if self.is_possible_answer(word) {
-				let entropy = self.get_avg_entropy(word);
+				let entropy = self.avg_entropy(word);
 				if entropy > max_entropy {
 					max_entropy = entropy;
 					max_entropy_word = word;
@@ -327,15 +344,15 @@ impl WordleState {
 		debug_assert!(depth > 0);
 		debug_assert!(depth <= WORDLE_NUM_GUESSES as u8);
 		
-		let h_0 = self.get_avg_entropy(word);
+		let h_0 = self.avg_entropy(word);
 		if depth == 1 {return h_0;}
 		
-		let mut dist: [WordleClue; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
+		let mut dist: [u16; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
 		let mut dist_total: u16 = 0;
 		
 		for answer in WORDLE_ANSWERS {
 			if self.is_possible_answer(answer) {
-				dist[get_clues(word, answer) as usize] += 1;
+				dist[get_clues(word, answer).as_usize()] += 1;
 				dist_total += 1;
 			}
 		}
@@ -347,7 +364,7 @@ impl WordleState {
 		for (pattern, &px) in dist.iter().enumerate() {
 			if px == 0 {continue;}
 			
-			s.push_entry(WordleEntry {guess: word, clue: pattern as WordleClue});
+			s.push_entry(WordleEntry {guess: word, clue: WordleClue::new(pattern as u8)});
 			
 			let mut max_entropy: f32 = 0.0;
 			for word in WORDLE_VALID_WORDS {
@@ -368,8 +385,7 @@ impl WordleState {
 	}
 }
 
-
-// better way to guess wordle words
+// better way to guess wordle words, split into another part
 impl WordleState {
 	/*
 	since calculating the entropy of a word is expensive, using this metric is much faster
@@ -413,212 +429,237 @@ impl WordleState {
 			- other optimizations i havent noticed/thought of yet
 	*/
 	
-	pub fn get_min_worst_entropy_word(&self) -> (u16, WordleWord) {
-		let mut min_worst_case: u16 = u16::MAX;
-		let mut best_guess: WordleWord = WordleWord::default();
+	// if there are less than this amount of possible answers, only choose from them
+	// const SMALL_CUTOFF: usize = 10;
+	
+	
+	pub fn avg_entropy(&self, word: WordleWord) -> f32 {
+		let mut dist: [u16; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
+		let mut dist_total: u16 = 0;
 		
-		// use a lookup table to avoid recomputing the same thing over and over again
-		let possible_answers: [bool; NUM_WORDLE_ANSWERS] = WORDLE_ANSWERS.map(|w: WordleWord| -> bool {self.is_possible_answer(w)});
-		let num_possible_answers = possible_answers.iter().filter(|&&b| b).count();
-		
-		if num_possible_answers == 1 {
-			return (0, WORDLE_ANSWERS[possible_answers.iter().position(|&b| b).unwrap()]);
-		}
-		
-		// arbitrary cutoff to make it always guess a possible answer when close to the end (idk if this helps or hurts average performance, i havent tested it tbqh)
-		if num_possible_answers > 16 {
-			'outer:
-			for (i, &word) in WORDLE_ANSWERS.iter().enumerate() {
-				if !possible_answers[i] {continue;}
-				
-				let max_value = {
-					let mut distribution: [u16; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
-					for (i, &answer) in WORDLE_ANSWERS.iter().enumerate() {
-						if possible_answers[i] {
-							let clue = get_clues(word, answer) as usize;
-							
-							distribution[clue] += 1;
-							if distribution[clue] > min_worst_case {continue 'outer;}
-						}
-					}
-					distribution.iter().fold(0, |a, &b| if a > b {a} else {b})
-				};
-				
-				if max_value < min_worst_case {
-					best_guess = word;
-					min_worst_case = max_value;
-				} /* else if max_value == min_worst_case {
-					// TODO: you have already calculated the distribution for BOTH of these, so dont recompute it by using get_avg_entropy()
-					// find some way to quickly compare entropies of distributions without going into float arithmetic
-					// maybe sm like comparing the sum of the abs differences between the distributions and mean rather than entropies
-					// or just do actual math on the -Σ[P(x)*log2(p(x))] formulas to find sm quicker to compute
-					
-					// cuz tbh computing the actual entropy isnt important, just comparing them
-					// i mean you can still compute it when needed (like when displaying to the user) 
-					// but in these intense calculations its not rlly worth it
-					
-					// ALSO i dont know if this whole thing is strictly necessary on high enough depth :/
-					
-					println!("{} {} {}", min_worst_case, String::from_utf8_lossy(&word), self.get_avg_entropy(word));
-				} // */
-			}
-		} else {
-			'outer:
-			for word in WORDLE_VALID_WORDS {
-				let max_value = {
-					let mut distribution: [u16; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
-					for (j, &answer) in WORDLE_ANSWERS.iter().enumerate() {
-						if possible_answers[j] {
-							let clue = get_clues(word, answer) as usize;
-							
-							distribution[clue] += 1;
-							if distribution[clue] > min_worst_case {continue 'outer;}
-						}
-					}
-					distribution.iter().fold(0, |a, &b| if a > b {a} else {b})
-				};
-				
-				if max_value < min_worst_case {
-					best_guess = word;
-					min_worst_case = max_value;
-				}
+		for answer in WORDLE_ANSWERS {
+			if self.is_possible_answer(answer) {
+				dist[get_clues(word, answer).as_usize()] += 1;
+				dist_total += 1;
 			}
 		}
 		
-		(min_worst_case as u16, best_guess)
+		// H = -sum(p*log(p))
+		//  => H = log(t) - sum(f*log(f))/t
+		//     (where t = total poss. answers and f = int freq of clue)
+		let sum = dist.iter()
+			.filter(|&&x| x != 0)
+			.fold(0.0, |acc, &freq| acc + freq as f32 * (freq as f32).log2());
+		
+		(dist_total as f32).log2() - sum / (dist_total as f32)
 	}
 	
-	pub fn get_min_worst_entropy_word_depth(&mut self, depth: u8, alpha: u16, beta: u16) -> Option<(u16, WordleWord)> {
-		debug_assert!(0 < depth && depth < WORDLE_NUM_GUESSES as u8); // i like python chained comparisons :/
+	pub fn get_min_worst_entropy_word(&self) -> (WordleWordScore, Option<WordleWord>) {
+		self.get_min_worst_entropy_word_minimax(1, WordleWordScore::MIN, WordleWordScore::MAX)
+	}
+	
+	pub fn get_min_worst_entropy_word_depth(&mut self, depth: u8) -> (WordleWordScore, Option<WordleWord>) {
+		self.get_min_worst_entropy_word_minimax(depth, WordleWordScore::MIN, WordleWordScore::MAX)
+	}
+	
+	
+	fn get_min_worst_entropy_word_minimax(&self, depth: u8, mut alpha: WordleWordScore, beta: WordleWordScore) -> (WordleWordScore, Option<WordleWord>) {
+		assert!(depth > 0);
 		
-		// TODO: do these ending states actually work for the winning/losing states?
-		if self.current_entry >= WORDLE_NUM_GUESSES {return None}
-		else if self.current_entry > 0 && self[self.current_entry-1].clue == 242 {return None}
+		let mut best_score = WordleWordScore::MIN;
+		let mut best_guess: Option<WordleWord> = None;
+		
+		let possible_answer_map: [bool; NUM_WORDLE_ANSWERS] = WORDLE_ANSWERS.map(|w: WordleWord| -> bool {self.is_possible_answer(w)});
+		let possible_answers: Vec<&WordleWord> = WORDLE_ANSWERS.iter()
+			.filter(|&a| self.is_possible_answer(*a))
+			.collect();
+		
+		let num_possible_answers = possible_answers.len();
+		
+		if self.is_lost() {
+			(WordleWordScore {max_worst_case: num_possible_answers as u16, clue_dist_sum: 0}, None)
+		} else if self.is_solved() {
+			(WordleWordScore::MAX, None)
+		} else if possible_answers.len() == 0 {
+			panic!("no possible answers");
+		} else if possible_answers.len() == 1 {
+			// if there is only one possible answer, just return it
+			(
+				WordleWordScore {
+					max_worst_case: 1,
+					clue_dist_sum: 10,
+				},
+				Some(WORDLE_ANSWERS[
+					// SAFETY: we literally just checked above that there is
+					//         a possible answer so unwrap_unchecked wont fail
+					unsafe {
+						possible_answer_map
+							.iter()
+							.position(|&b| b)
+							.unwrap_unchecked()
+					}
+				])
+			)
+		}
 		
 		else if depth == 1 {
-			let mut beta = beta;
-			let mut min_worst_case: u16 = u16::MAX;
-			let mut best_guess: Option<WordleWord> = None;
-			
-			// use a lookup table to avoid recomputing the same thing over and over again
-			let possible_answers: [bool; NUM_WORDLE_ANSWERS] = WORDLE_ANSWERS.map(|w: WordleWord| -> bool {self.is_possible_answer(w)});
-			let num_possible_answers = possible_answers.iter().filter(|&&b| b).count();
-			
-			// this is important bc if you dont explicitly check this, the bot goes "oh well no matter
-			// what, theres always just 1 possible answer, so ill just guess sm random instead of the
-			// only remaining option! i am very smart :sunglasses:"
-			// TODO: should i have this outside of depth==1??? (probably)
-			if num_possible_answers == 1 {
-				return Some((0, WORDLE_ANSWERS[possible_answers.iter().position(|&b| b).unwrap()]));
-			}
-			
-			// TODO: optimize order of this
-			for word in WORDLE_VALID_WORDS {
-				let max_value = {
-					let mut distribution: [u16; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
-					for (i, &answer) in WORDLE_ANSWERS.iter().enumerate() {
-						if possible_answers[i] {
-							let clue = get_clues(word, answer) as usize;
+			/* if num_possible_answers < WordleState::SMALL_CUTOFF {
+				// TODO: OPTIMIZE THIS
+				// this helps in *most* cases, but when its remaining words like
+				// BATCH, HATCH, LATCH, MATCH, PATCH, etc. it makes it MUCH worse .__.
+				let filtered_words = WORDLE_ANSWERS.iter()
+					.enumerate()
+					.filter(|(i, _)| possible_answers[*i])
+					.map(|(_, &w)| w)
+					.collect::<Vec<_>>();
+				
+				'outer:
+				for &word in &filtered_words {
+					let max_value = {
+						let mut distribution: [u16; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
+						for &answer in &filtered_words {
+							let clue = get_clues(word, answer).as_usize();
 							
 							distribution[clue] += 1;
-							if distribution[clue] > beta {break;}
+							if distribution[clue] > beta {continue 'outer;}
+						}
+						distribution.iter().fold(0, |a, &b| if a > b {a} else {b})
+					};
+					
+					if max_value <= min_worst_case {
+						if max_value <= alpha {break;}
+						
+						if max_value < beta {beta = max_value;}
+						
+						if max_value == min_worst_case {
+							if let Some(bg) = best_guess {	
+								if self.avg_entropy(word) > self.avg_entropy(bg) {
+									best_guess = Some(word);
+								}
+							}
+						} else {
+							best_guess = Some(word);
+							min_worst_case = max_value;
 						}
 					}
-					distribution.iter().fold(0, |a, &b| if a > b {a} else {b})
+				}
+				
+				(min_worst_case, best_guess)
+			} else */
+			if self.hard_mode {
+				todo!("hard mode depth 1");
+			} else {
+				'outer:
+				for word in WORDLE_VALID_WORDS {
+					let score: WordleWordScore = {
+						let mut distribution: [u16; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
+						for &&answer in &possible_answers {
+							let clue = get_clues(word, answer).as_usize();
+							
+							distribution[clue] += 1;
+							if distribution[clue] > alpha.max_worst_case {continue 'outer;}
+						}
+						
+						WordleWordScore {
+							// SAFETY: its an initialized array -- of fucking course its gonna have at least one value
+							max_worst_case: unsafe { *distribution.iter().max().unwrap_unchecked() },
+							// SAFETY: 0 <= i < distribution.len() == NUM_WORDLE_CLUES == 243
+							clue_dist_sum: distribution.iter().enumerate().fold(0, |a, (i, &x)| a + unsafe{WordleClue(i as u8)}.sum_of_base3_digits() as u16 * x )
+						}
+					};
+					
+					if score > best_score {
+						if score >= beta {break;}
+						
+						if score > alpha {alpha = score;}
+						
+						best_guess = Some(word);
+						best_score = score;
+					} else if score == best_score {
+						// still dont know how much performance this is worth or if it even works
+						if let Some(bg) = best_guess {	
+							if self.avg_entropy(word) > self.avg_entropy(bg) {
+								best_guess = Some(word);
+							}
+						}
+					}
+				}
+				
+				(best_score, best_guess)
+			}
+		}
+		
+		else {
+			if self.hard_mode {todo!("hard mode depth > 1");}
+			
+			let mut state = self.clone();
+			// temporary entry that gets overwritten __A LOT__
+			state.push_entry(WordleEntry {guess: *b"     ", clue: WordleClue::new(0)});
+			
+			// TODO: iterate over this sorted by the results of a lower depth search
+			for guess in WORDLE_VALID_WORDS {
+				print!("{}\r", String::from_utf8_lossy(&guess));
+				state.get_entry_mut(state.current_entry-1).unwrap().guess = guess;
+				
+				// TODO: optimize this down somehow
+				let possible_clues: [bool; NUM_WORDLE_CLUES] = {
+					let mut clue_is_possible: [bool; NUM_WORDLE_CLUES] = [false; NUM_WORDLE_CLUES];
+					for (i, &answer) in WORDLE_ANSWERS.iter().enumerate() {
+						if possible_answer_map[i] {
+							clue_is_possible[get_clues(guess, answer).as_usize()] = true;
+						}
+					}
+					clue_is_possible
 				};
 				
-				if max_value <= min_worst_case {
-					if max_value <= alpha {break;}
+				let score = {
+					let mut beta = beta;
+					let mut lowest_score = WordleWordScore::MAX;
+					// let mut lowest_word: Option<WordleWord> = None;
 					
-					if max_value < beta {beta = max_value;}
-					
-					if max_value == min_worst_case {
-						// TODO: see above (long) comment in get_min_worst_entropy_word()
-						// yeah i still dont know if this slows things down too much
-						if self.get_avg_entropy(word) < self.get_avg_entropy(best_guess.unwrap()) {
-							best_guess = Some(word);
-						}
-					} else {
-						best_guess = Some(word);
-						min_worst_case = max_value;
-					}
-				}
-			}
-			
-			return best_guess.map(|w| (min_worst_case, w));
-		}
-		
-		let mut beta = beta;
-		
-		let mut min_value = u16::MAX;
-		let mut min_word: Option<WordleWord> = None;
-		
-		// pulled out of the loop for optimization
-		let possible_answers: [bool; NUM_WORDLE_ANSWERS] = WORDLE_ANSWERS.map(|w: WordleWord| -> bool {self.is_possible_answer(w)});
-		
-		
-		// TODO: iterate over this sorted by the results of a lower depth search
-		for guess in WORDLE_VALID_WORDS {
-			let possible_clues: [bool; NUM_WORDLE_CLUES] = {
-				let mut clue_is_possible: [bool; NUM_WORDLE_CLUES] = [false; NUM_WORDLE_CLUES];
-				for (i, &answer) in WORDLE_ANSWERS.iter().enumerate() {
-					// TODO: optimize all this down
-					if possible_answers[i] {
-						clue_is_possible[get_clues(guess, answer) as usize] = true;
-					}
-				}
-				clue_is_possible
-			};
-			
-			let (max_value, _max_word) = {
-				let mut alpha = alpha;
-				let mut max_value = u16::MIN;
-				let mut max_word: Option<WordleWord> = None;
-				
-				// for each child node
-				for i in 0..NUM_WORDLE_CLUES {
-					if possible_clues[i] {
-						self.push_entry(WordleEntry {guess: guess, clue: i as u8});
-						let result = self.get_min_worst_entropy_word_depth(depth-1, alpha, beta);
-						self.pop_entry();
-						
-						if result.is_none() {break;}
-						let (value, word) = result.unwrap();
-						
-						// println!("\t{} {} {} max:{} b:{} a:{}", radix_fmt::radix(i, 3), String::from_utf8_lossy(&word), value, max_value, beta, alpha);
-						
-						if value > max_value {
-							max_value = value;
-							max_word = Some(word);
+					// for each child node
+					for i in 0..NUM_WORDLE_CLUES {
+						if possible_clues[i] {
+							state.get_entry_mut(state.current_entry-1).unwrap().clue = WordleClue::new(i as u8);
+							let (score, _word) = state.get_min_worst_entropy_word_minimax(depth-1, alpha, beta);
 							
-							if max_value >= beta {
-								break;
-							}
+							// if _word.is_none() {break} // TODO: does this work??
 							
-							if alpha < max_value {
-								alpha = max_value;
+							if score < lowest_score {
+								lowest_score = score;
+								
+								if score <= alpha {break;}
+								
+								if score < beta {beta = score;}
 							}
 						}
 					}
-				}
+					
+					lowest_score
+				};
 				
-				(max_value, max_word)
-			};
-			
-			// convenient for test purposes
-			if self.current_entry==0 {print!("{} {} {}  {}", min_value, String::from_utf8_lossy(&guess), max_value, (if max_value <= min_value {'\n'} else {'\r'}));use std::io::Write;std::io::stdout().flush().unwrap();};
-			
-			if max_value < min_value {
-				if min_value <= alpha {break;}
+				// convenient for test purposes
+				// print!("  {:?} {} {:?}  \r", min_value, String::from_utf8_lossy(&guess), max_value);
 				
-				if min_value < beta {beta = min_value;}
 				
-				min_value = max_value;
-				min_word = Some(guess);
+				if score > best_score {
+					best_score = score;
+					best_guess = Some(guess);
+					
+					if score >= beta {break;}
+					
+					if score > alpha {alpha = score;}
+				} /* else if score == best_score { // TODO: ?????? does this work??? is it important???
+					if let Some(bg) = best_guess {	
+						if self.avg_entropy(guess) > self.avg_entropy(bg) {
+							best_guess = Some(guess);
+						}
+					}
+				} */
 			}
+			
+			(best_score, best_guess)
 		}
-		
-		min_word.map(|w| (min_value, w))
 	}
 }
 
@@ -644,12 +685,12 @@ mod tests {
 		
 		for a in WORDLE_ANSWERS {
 			for g in WORDLE_VALID_WORDS {
-				dist[get_clues(g, a) as usize] += 1;
+				dist[get_clues(g, a).as_usize()] += 1;
 			}
 		}
 		
 		// now THIS is what i call a test.
-		assert_eq!(dist, [6694602,1816948,734049,1828604,471396,126405,721800,145608,128206,1854852,388353,132025,478211,87053,20893,139385,21436,13077,651495,142036,71960,139441,24709,9586,80925,11165,19390,2249147,512417,152649,506143,102328,22593,139363,23615,14112,614704,99892,27131,121224,15712,2882,25335,2854,1456,132945,23375,7543,24474,3176,994,8090,979,566,1097968,198355,111762,172723,30512,8652,102784,11675,19838,187575,27218,9868,28590,3567,694,12321,1197,1005,128703,16446,13427,12898,1482,603,15115,775,4594,1420187,337945,118788,337301,65318,17386,113273,18831,12440,304654,50919,16812,62212,7496,1958,15775,1646,915,95588,18144,7797,16559,2057,881,6837,850,545,437564,81728,22416,79707,10993,2390,18600,2497,1411,87202,10116,2721,12749,809,177,2173,148,51,16525,2393,613,2130,174,22,547,46,30,163341,22990,10901,20193,2292,691,11389,966,1000,22126,2031,905,2250,129,15,1093,46,62,11296,1031,685,963,34,44,725,41,0,616362,103814,62552,132770,21401,7080,59481,6297,10282,126729,16828,7062,24674,2710,739,7600,706,493,69445,7620,7276,9904,762,468,7946,401,1917,157029,20607,8555,27045,2952,866,7656,544,566,31691,2645,1097,4284,281,45,984,34,54,10527,825,401,1184,32,46,523,40,0,125767,15016,12442,14714,1935,486,11063,638,2301,14070,1334,437,1837,113,46,645,41,0,20647,1362,2142,1126,83,0,2682,0,2310]);
+		assert_eq!(dist, [6693271, 1816409, 732917, 1828213, 471198, 126059, 721652, 145567, 128121, 1854177, 388163, 131605, 478006, 87000, 20805, 139368, 21433, 13059, 651309, 142000, 71787, 139332, 24679, 9521, 80878, 11155, 19355, 2248626, 512215, 152235, 506020, 102311, 22534, 139338, 23604, 14086, 614368, 99843, 26976, 121166, 15707, 2862, 25331, 2852, 1447, 132934, 23371, 7526, 24463, 3176, 989, 8089, 979, 566, 1097744, 198298, 111659, 172657, 30491, 8638, 102748, 11661, 19830, 187570, 27217, 9866, 28588, 3567, 694, 12321, 1197, 1005, 128627, 16430, 13381, 12880, 1480, 599, 15098, 771, 4590, 1419554, 337699, 118575, 337111, 65242, 17351, 113200, 18811, 12427, 304479, 50868, 16765, 62161, 7485, 1951, 15775, 1646, 914, 95491, 18128, 7780, 16527, 2048, 879, 6824, 847, 543, 437287, 81655, 22352, 79665, 10987, 2388, 18577, 2495, 1408, 87136, 10105, 2700, 12736, 809, 176, 2173, 148, 51, 16503, 2390, 613, 2120, 173, 22, 543, 46, 30, 163300, 22982, 10885, 20188, 2292, 690, 11387, 966, 1000, 22121, 2029, 903, 2249, 129, 15, 1093, 46, 62, 11296, 1031, 685, 963, 34, 44, 725, 41, 0, 616226, 103772, 62463, 132729, 21393, 7066, 59460, 6296, 10273, 126679, 16816, 7024, 24663, 2708, 735, 7598, 706, 491, 69431, 7619, 7264, 9898, 762, 463, 7939, 401, 1914, 156980, 20583, 8512, 27041, 2952, 865, 7652, 544, 565, 31665, 2643, 1088, 4282, 281, 45, 984, 34, 53, 10525, 825, 401, 1184, 32, 46, 523, 40, 0, 125725, 15012, 12420, 14702, 1935, 486, 11057, 637, 2299, 14070, 1334, 437, 1837, 113, 46, 645, 41, 0, 20632, 1361, 2135, 1125, 83, 0, 2679, 0, 2309]);
 	}
 	
 	#[test]
@@ -672,7 +713,7 @@ mod tests {
 	fn test_possible_answers() {
 		let mut x = WordleState::default();
 		
-		x.push_entry(WordleEntry{guess: *b"AROSE", clue: 0});
+		x.push_entry(WordleEntry{guess: *b"AROSE", clue: clues!(_ _ _ _ _)});
 		
 		assert_eq!(WORDLE_ANSWERS.iter().filter(|&a| x.is_possible_answer(*a)).count(), 182);
 	}
@@ -680,7 +721,7 @@ mod tests {
 	#[test]
 	fn test_avg_entropy() {
 		let s = WordleState::default();
-		let e = s.get_avg_entropy(*b"AROSE");
+		let e = s.avg_entropy(*b"AROSE");
 		
 		assert!(5.76 < e && e < 5.78);
 	}
@@ -718,7 +759,7 @@ mod tests {
 		
 		// println!("{} {}", e, String::from_utf8_lossy(&w));
 		
-		assert_eq!(e, 167);
+		assert_eq!(e, WordleWordScore {max_worst_case: 167, clue_dist_sum: 0});
 		// assert_eq!(w, *b"RAISE"); // TODO: RAISE has the lowest AVERAGE entropy, but random bs like AESIR has the same worst case entropy and since it comes first in the alphabet it gets picked - see comment in get_min_worst_entropy_word()
 	}
 	
@@ -728,16 +769,13 @@ mod tests {
 		// possible answers and even THAT takes ~10 seconds, so slowing it down by a 
 		// factor of 10^2 (and 1 / the % of filtered words) takes too long and i rlly 
 		// cant be bothered to wait ~24 HOURS (idk exact time) for it to finish
-		let mut s = WordleState::default();
+		// let mut s = WordleState::default();
 		
-		let (e, w) = s.get_min_worst_entropy_word_depth(2, u16::MIN, u16::MAX).unwrap();
+		// let (e, Some(w)) = s.get_min_worst_entropy_word_depth(3).unwrap();
 		
-		println!("{} {}", e, String::from_utf8_lossy(&w));
+		// println!("{} {}", e, String::from_utf8_lossy(&w));
 		
-		// this is the result of the above test
-		// so the real answer is <= this one
-		// (im guessing that e is actually 7 or 8)
-		assert_eq!(e, 9);
-		assert!(w == *b"EARLY" || w == *b"NOSEY" || w == *b"RELAY");
+		// assert_eq!(e, 8);
+		// assert!(w == *b"CERTY" || w == *b"RILEY");
 	}
 }
