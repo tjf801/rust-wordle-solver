@@ -1,8 +1,8 @@
-include!("new_constants.rs");
-
 use std::lazy::SyncOnceCell;
 
-pub const fn get_clues_uncached(guess: &[u8], answer: &[u8]) -> WordleClueEnum {
+/// TODO: this doesnt take into account that the word is exactly five letters, and so that seems like some missed optimization -- but also it doesnt really matter since this is only really done at compile time
+/// TODO: make this run at compile time instead of runtime - but rusts const evaluator shits itself when it has to evaluate this several million times and makes the already slow compilation completely unmanageable (it took at least 30 minutes, but afaik it could take 10 hours cuz i didnt let it finish)
+const fn get_clues_uncached(guess: &[u8], answer: &[u8]) -> WordleClue {
 	debug_assert!(guess.len() == 5);
     debug_assert!(answer.len() == 5);
 	
@@ -101,17 +101,17 @@ pub const fn get_clues_uncached(guess: &[u8], answer: &[u8]) -> WordleClueEnum {
         }
     }
 	
-	WordleClueEnum::from(g + y) // since these have disjoint digits in base 3, we can add them together
+	WordleClue::from(g + y) // since these have disjoint digits in base 3, we can add them together
 }
 
 
-// TODO: should this just be `thread_local!` instead of `SyncOnceCell`?
-type ClueCache = [[WordleClueEnum; NUMBER_OF_ANSWERS]; NUMBER_OF_WORDS];
-pub static CLUE_CACHE: SyncOnceCell<Box<ClueCache>> = SyncOnceCell::new();
+type ClueCache = [[WordleClue; NUM_WORDLE_ANSWERS]; NUM_WORDLE_WORDS];
+/// TODO: should this just be `thread_local!` instead of `SyncOnceCell`?
+static CLUE_CACHE: SyncOnceCell<Box<ClueCache>> = SyncOnceCell::new();
 
 fn initialize_clue_cache() -> Box<ClueCache> {
     // ClueCache is literally too big to put on the stack.
-    // I know becaus`exit code: 0xc00000fd, STATUS_STACK_OVERFLOW`
+    // I know beca`exit code: 0xc00000fd, STATUS_STACK_OVERFLOW`
     
     // TODO: just use `#![feature(new_uninit)]` and `new_zeroed()`
     
@@ -130,15 +130,15 @@ fn initialize_clue_cache() -> Box<ClueCache> {
     // SAFETY: this is pretty obviously fine
     let mut cache: Box<ClueCache> = unsafe {Box::from_raw(memory)};
     
-    for i in 0..NUMBER_OF_WORDS {
-        for j in 0..NUMBER_OF_ANSWERS {
-            cache[i][j] = get_clues_uncached(WordleWordEnum::from(i).as_str().as_bytes(), WordleAnswerEnum::from(j).as_str().as_bytes());
+    for i in 0..NUM_WORDLE_WORDS {
+        for j in 0..NUM_WORDLE_ANSWERS {
+            cache[i][j] = get_clues_uncached(WordleWord::from(i).as_str().as_bytes(), WordleAnswer::from(j).as_str().as_bytes());
         }
     }
     
     cache
 }
 
-pub fn get_clues(word: WordleWordEnum, answer: WordleAnswerEnum) -> WordleClueEnum {
-    CLUE_CACHE.get_or_init(|| initialize_clue_cache())[word as usize][answer as usize]
+pub fn get_clues(guess: WordleWord, answer: WordleAnswer) -> WordleClue {
+    CLUE_CACHE.get_or_init(|| initialize_clue_cache())[guess as usize][answer as usize]
 }

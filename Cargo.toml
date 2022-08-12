@@ -7,5 +7,18 @@ edition = "2021"
 
 [dependencies]
 
+[features]
+default = ["bin"]
+bin = []
+
 [profile.release] 
 debug = true
+
+[lib]
+name = "wordlebotlib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wordlebot"
+path = "src/main.rs"
+required-features = ["bin"]
