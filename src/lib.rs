@@ -614,10 +614,10 @@ mod tests {
 	fn test_clue_repeated_letters() {
 		// stolen from 3blue1brown's wordle correction video because theyre good test cases for this behavior
 		// see first ~60 seconds of https://www.youtube.com/watch?v=fRed0Xmc2Wg
-		assert_eq!(get_clues_uncached(b"SPEED", b"ABIDE"), WordleClue::__Y_Y);
-		assert_eq!(get_clues_uncached(b"SPEED", b"ERASE"), WordleClue::Y_YY_);
-		assert_eq!(get_clues_uncached(b"SPEED", b"STEAL"), WordleClue::G_G__);
-		assert_eq!(get_clues_uncached(b"SPEED", b"CREPE"), WordleClue::_YGY_);
+		assert_eq!(get_clues_uncached(b"SPEED", b"ABIDE"), WordleClue::BBYBY);
+		assert_eq!(get_clues_uncached(b"SPEED", b"ERASE"), WordleClue::YBYYB);
+		assert_eq!(get_clues_uncached(b"SPEED", b"STEAL"), WordleClue::GBGBB);
+		assert_eq!(get_clues_uncached(b"SPEED", b"CREPE"), WordleClue::BYGYB);
 	}
 	
     #[test]
@@ -637,7 +637,7 @@ mod tests {
 	fn test_possible_answers() {
 		let mut x = WordleState::default();
 		
-		x.push_entry(WordleEntry{guess: WordleWord::AROSE, clue: WordleClue::_____});
+		x.push_entry(WordleEntry{guess: WordleWord::AROSE, clue: WordleClue::BBBBB});
 		
 		assert_eq!((0..NUM_WORDLE_ANSWERS).map(|i|WordleAnswer::from(i)).filter(|&a| x.is_possible_answer(a)).count(), 182);
 	}

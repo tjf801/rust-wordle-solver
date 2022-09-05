@@ -18,8 +18,8 @@ fn main() {
 	let mut state = WordleState::new();
 	
 	state.hard_mode = true;
-	state.push_entry(WordleEntry {guess: WordleWord::LEARN, clue: WordleClue::YY___});
-	// state.push_entry(WordleEntry {guess: WordleWord::FLEET, clue: WordleClue::_YG__});
+	state.push_entry(WordleEntry {guess: WordleWord::LEARN, clue: WordleClue::BYBYB});
+	state.push_entry(WordleEntry {guess: WordleWord::RIPER, clue: WordleClue::YYYYB});
 	// state.push_entry(WordleEntry {guess: WordleWord::DIVER, clue: WordleClue::_G_GG});
 	// state.push_entry(WordleEntry {guess: WordleWord::TIMER, clue: WordleClue::_G_GG});
 	

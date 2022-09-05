@@ -142,3 +142,4 @@ fn initialize_clue_cache() -> Box<ClueCache> {
 pub fn get_clues(guess: WordleWord, answer: WordleAnswer) -> WordleClue {
     CLUE_CACHE.get_or_init(|| initialize_clue_cache())[guess as usize][answer as usize]
 }
+
