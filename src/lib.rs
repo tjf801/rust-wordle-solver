@@ -3,6 +3,8 @@
 // but there have been way fewer segfaults and annoying stuff like that)
 // also because i want to get better at rust cuz i lowkey suck at it :/
 
+#![allow(mixed_script_confusables)]
+
 // why do these need to be here if they give me warnings??? 🤔
 #![feature(unchecked_math, const_inherent_unchecked_arith)]
 #![feature(rustc_attrs)]
@@ -16,172 +18,7 @@
 include!("constants.rs");
 include!("get_clues.rs");
 include!("score.rs");
-
-pub const WORDLE_NUM_GUESSES: usize = 10;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WordleEntry {
-	pub guess: WordleWord, 
-	pub clue: WordleClue
-}
-
-impl WordleEntry {
-	fn matches(&self, possible_answer: WordleAnswer) -> bool {
-		// TODO: maybe optimize this?
-		get_clues(self.guess, possible_answer) == self.clue
-	}
-}
-
-
-#[derive(Default, Clone)]
-pub struct WordleState {
-	pub answer: Option<WordleAnswer>,
-	pub hard_mode: bool,
-	current_entry: usize, // "size"
-	pub entries: [Option<WordleEntry>; WORDLE_NUM_GUESSES]
-}
-
-impl WordleState {
-	pub const fn new() -> WordleState {
-		WordleState {
-			answer: None,
-			hard_mode: false,
-			current_entry: 0,
-			entries: [None; WORDLE_NUM_GUESSES]
-		}
-	}
-	
-	pub const fn get_entry(&self, index: usize) -> Option<&WordleEntry> {
-		assert!(index < WORDLE_NUM_GUESSES);
-		
-		self.entries[index].as_ref()
-	}
-	pub fn get_entry_mut(&mut self, index: usize) -> Option<&mut WordleEntry> {
-		assert!(index < WORDLE_NUM_GUESSES);
-		
-		self.entries[index].as_mut()
-	}
-	
-	pub fn is_solved(&self) -> bool {
-		self.current_entry > 0 && self.get_entry(self.current_entry-1).unwrap().clue == WordleClue::SOLVED
-	}
-	
-	pub fn is_lost(&self) -> bool {
-		self.current_entry >= WORDLE_NUM_GUESSES && !self.is_solved()
-	}
-	
-	pub fn push_entry(&mut self, entry: WordleEntry) {
-		debug_assert!(self.current_entry < WORDLE_NUM_GUESSES);
-		
-		self.entries[self.current_entry] = Some(entry);
-		
-		self.current_entry += 1;
-	}
-	
-	pub fn pop_entry(&mut self) -> Option<WordleEntry> {
-		if self.current_entry == 0 {
-			return None;
-		}
-		
-		self.current_entry -= 1;
-		
-		self.entries[self.current_entry].take()
-	}
-	
-	pub fn is_possible_answer(&self, possible_answer: WordleAnswer) -> bool {
-		if self.current_entry == 0 {
-			true
-		}
-		// a potential optimization that could dramatically improve performance is keeping 
-		// track of which answers have been used in previous games before but it changes 
-		// what guess you should use and invalidates any previous computational work, makes
-		// the algorithm not work for the same answer twice, and it feels SUPER cheaty lol
-		/* else if self.hard_mode {
-			self.get_entry(self.current_entry-1).unwrap().matches(possible_answer)
-		} */ else {
-			self.into_iter().all(|entry| entry.matches(possible_answer))
-		}
-	}
-	
-	pub fn is_possible_hardmode_word(&self, possible_word: WordleWord) -> bool {
-		true // TODO: make this actually correct
-	}
-	
-	pub fn share_text(&self) -> String {
-		let mut text = String::new();
-		
-		text += format!("Wordle {} {}/{}{}\n",
-			self.answer.unwrap().day_number(),
-			if self.is_lost() {"X".to_string()} else {self.current_entry.to_string()},
-			WORDLE_NUM_GUESSES,
-			if self.hard_mode {"*"} else {""}
-		).as_str();
-		
-		for i in 0..self.current_entry {
-			if let Some(entry) = self.entries[i] {
-				let c = entry.clue as u8;
-				
-				let (q, c) = (c / 81, c % 81);
-				text += if q == 0 {"⬜"} else if q == 1 {"🟨"} else {"🟩"};
-				
-				let (q, c) = (c / 27, c % 27);
-				text += if q == 0 {"⬜"} else if q == 1 {"🟨"} else {"🟩"};
-				
-				let (q, c) = (c / 9, c % 9);
-				text += if q == 0 {"⬜"} else if q == 1 {"🟨"} else {"🟩"};
-				
-				let (q, c) = (c / 3, c % 3);
-				text += if q == 0 {"⬜"} else if q == 1 {"🟨"} else {"🟩"};
-				text += if c == 0 {"⬜"} else if c == 1 {"🟨"} else {"🟩"};
-				
-				text += "\n";
-			}
-		}
-		
-		text
-	}
-}
-
-impl std::ops::Index<usize> for WordleState {
-	type Output = WordleEntry;
-	
-	fn index(&self, index: usize) -> &WordleEntry {
-		assert!(index < self.current_entry);
-		
-		self.get_entry(index).unwrap()
-	}
-}
-
-pub struct WordleStateIntoIterator<'a> {
-	state: &'a WordleState,
-	index: usize
-}
-
-impl<'a> Iterator for WordleStateIntoIterator<'a> {
-	type Item = &'a WordleEntry;
-	
-	fn next(&mut self) -> Option<&'a WordleEntry> {
-		if self.index >= WORDLE_NUM_GUESSES {
-			return None;
-		}
-		
-		self.index += 1;
-		
-		self.state.entries[self.index-1].as_ref()
-	}
-}
-
-impl<'a> IntoIterator for &'a WordleState {
-	type Item = &'a WordleEntry;
-	type IntoIter = WordleStateIntoIterator<'a>;
-	
-	fn into_iter(self) -> Self::IntoIter {
-		WordleStateIntoIterator {
-			state: self,
-			index: 0
-		}
-	}
-}
+include!("wordle.rs");
 
 
 impl WordleState {
@@ -604,6 +441,347 @@ impl WordleState {
 	}
 }
 
+
+pub struct Partitions {
+	pub partitions: [Option<(WordleClue, Box<[WordleAnswer]>)>; NUM_WORDLE_CLUES],
+	num_partitions: usize,
+	is_sorted: bool
+}
+impl Partitions {
+	pub fn new(trial_word: WordleWord, prev_possible_answers: &[WordleAnswer]) -> Self {
+		let partitions = {
+			// ah yes, rust
+			const INIT: Option<(WordleClue, Vec<WordleAnswer>)> = None::<(WordleClue, Vec<WordleAnswer>)>;
+			let mut arr = [INIT; NUM_WORDLE_CLUES];
+			
+			for &answer in prev_possible_answers {
+				let clue = get_clues(trial_word, answer);
+				match &mut arr[usize::from(clue)] {
+					Some(v) => v.1.push(answer),
+					None => arr[usize::from(clue)] = Some((clue, vec![answer])),
+				}
+			}
+			
+			arr.map(
+				|v| v.map(
+					|(c, v)| (c, v.into_boxed_slice())
+				)
+			)
+		};
+		
+		let size = partitions.iter().filter(|&x| x.is_some()).count();
+		
+		Self {
+			partitions: partitions,
+			num_partitions: size,
+			is_sorted: false
+		}
+	}
+	
+	pub fn num(&self) -> usize {
+		self.num_partitions
+	}
+	
+	pub fn sort(&mut self) {
+		if self.is_sorted {return;}
+		
+		// sort partitions by size
+		self.partitions.sort_by_key(
+			|x| 
+			x.as_ref()
+			.map(|x| x.1.len())
+			.unwrap_or(usize::MAX) // put all the `None`s at the end
+		);
+		
+		self.is_sorted = true;
+	}
+}
+
+pub struct PartitionIterator<'a> {
+	partitions: &'a Partitions,
+	current_index: usize,
+}
+impl<'a> Iterator for PartitionIterator<'a> {
+	type Item = (WordleClue, &'a [WordleAnswer]);
+	
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.partitions.is_sorted {
+			if self.current_index < self.partitions.num_partitions {
+				let (clue, answers) = &self.partitions.partitions[self.current_index].as_ref().unwrap();
+				
+				self.current_index += 1;
+				
+				return Some((*clue, answers));
+			} else {
+				return None
+			}
+		}
+		
+		for i in self.current_index..243 {
+			if let Some((clue, answers)) = &self.partitions.partitions[i] {
+				self.current_index = i + 1;
+				return Some((*clue, answers));
+			}
+		}
+		
+		return None;
+	}
+}
+impl<'a> IntoIterator for &'a Partitions {
+	type Item = (WordleClue, &'a [WordleAnswer]);
+	type IntoIter = PartitionIterator<'a>;
+	
+	fn into_iter(self) -> Self::IntoIter {
+		PartitionIterator {
+			partitions: self,
+			current_index: 0,
+		}
+	}
+}
+
+
+include!("total_guesses.rs");
+
+const WORDLE_GUESSES: usize = 6;
+
+
+pub fn minoverwords<const HARD_MODE: bool>(
+	guessable_words: &[WordleWord], 
+	possible_answers: &[WordleAnswer], 
+	remaining_guesses: u8, 
+	mut β: GuessTotal
+) -> GuessTotal {
+	if remaining_guesses == 0 {return GuessTotal::Infinity;}
+	else if possible_answers.is_empty() {panic!("no possible answers");}
+	else if guessable_words.is_empty() {panic!("no guessable words");}
+	else if possible_answers.len() == 1 {
+		// if there is only one possible answer, we can just guess it
+		return 1.into();
+	}
+	else if GuessTotal::Number(2*possible_answers.len()as u16-1) >= β {return β;}
+	else if possible_answers.len() == 2 {
+		// this is because in the two possibilities, the best you can do is just guess one of them
+		// making one possible answer have a score of 1 and the other have a score of 2
+		if remaining_guesses > 1 {
+			return 3.into();
+		} else {
+			return GuessTotal::Infinity; // we can't guess both
+		}
+	}
+	else if possible_answers.len() == 3 {
+		// if there are three possibilities, there are different cases
+		// 1. num_guesses >= 2 ∃word∈possible_answers s.t. the clues for each answer are all different
+		//        in this case, the splitting answer has a score of 1, and the others have 2, making the score 5
+		// 2. num_guesses >= 3:
+		//        just guess all the answers in order, making the three possibilities have scores 1, 2, and 3
+		//        making the score 6, which is the same as case 3, but without a full loop!
+		// 3. num_guesses >= 2 and ∃word∈guessable_words s.t the clues for each answer are all different
+		//	      in this case, all the answers have a score of 2, making the score 6
+		
+		// check for case 1
+		// NOTE: we know that the first answer will be GGGGG when we guess it (which MUST be different
+		//       from the other answers), so we don't need to check for that
+		if get_clues(possible_answers[0].into(), possible_answers[1]) != get_clues(possible_answers[0].into(), possible_answers[2])
+		|| get_clues(possible_answers[1].into(), possible_answers[0]) != get_clues(possible_answers[1].into(), possible_answers[2])
+		|| get_clues(possible_answers[2].into(), possible_answers[0]) != get_clues(possible_answers[2].into(), possible_answers[1]) {
+			return 5.into();
+		}
+		
+		// check for case 2
+		// if we have enough guesses to just guess all the answers, just do that
+		if remaining_guesses >= 3 {return 6.into();}
+		
+		// if we are able to split the answers and get them all in 2, then we can just return 6
+		for &word in guessable_words {
+			let (c1, c2, c3) = (
+				get_clues(word, possible_answers[0]),
+				get_clues(word, possible_answers[1]),
+				get_clues(word, possible_answers[2]),
+			);
+			
+			if c1 != c2 && c1 != c3 && c2 != c3 {
+				return 6.into();
+			}
+		}
+		
+		// otherwise, we can't guess all the answers without running out of guesses
+		return GuessTotal::Infinity;
+	}
+	
+	for &guess in guessable_words {
+		β = sumoverpartitions::<HARD_MODE>(
+				guessable_words,
+				possible_answers, 
+				remaining_guesses-1,
+				guess, 
+				β
+			);
+	}
+	
+	β
+}
+
+pub fn minoverwords_fast_bound(
+	possible_answers: &[WordleAnswer], 
+	remaining_guesses: u8, 
+	β: GuessTotal
+) -> Option<GuessTotal> {
+	if remaining_guesses == 0 {return Some(GuessTotal::Infinity);}
+	else if possible_answers.is_empty() {panic!("no possible answers");}
+	else if possible_answers.len() == 1 {
+		// if there is only one possible answer, we can just guess it
+		return Some(1.into());
+	}
+	else if GuessTotal::Number(2*possible_answers.len()as u16-1) >= β {return Some(β);}
+	else if possible_answers.len() == 2 {
+		// this is because in the two possibilities, the best you can do is just guess one of them
+		// making one possible answer have a score of 1 and the other have a score of 2
+		if remaining_guesses > 1 {
+			return Some(3.into());
+		} else {
+			return Some(GuessTotal::Infinity); // we can't guess both
+		}
+	}
+	else if possible_answers.len() == 3 {
+		// if there are three possibilities, there are different cases
+		// 1. num_guesses >= 2 ∃word∈possible_answers s.t. the clues for each answer are all different
+		//        in this case, the splitting answer has a score of 1, and the others have 2, making the score 5
+		// 2. num_guesses >= 3:
+		//        just guess all the answers in order, making the three possibilities have scores 1, 2, and 3
+		//        making the score 6, which is the same as case 3, but without a full loop!
+		
+		// check for case 1
+		// NOTE: we know that the first answer will be GGGGG when we guess it (which MUST be different
+		//       from the other answers), so we don't need to check for that
+		if get_clues(possible_answers[0].into(), possible_answers[1]) != get_clues(possible_answers[0].into(), possible_answers[2])
+		|| get_clues(possible_answers[1].into(), possible_answers[0]) != get_clues(possible_answers[1].into(), possible_answers[2])
+		|| get_clues(possible_answers[2].into(), possible_answers[0]) != get_clues(possible_answers[2].into(), possible_answers[1]) {
+			return Some(5.into());
+		}
+		
+		// check for case 2
+		// if we have enough guesses to just guess all the answers, just do that
+		if remaining_guesses >= 3 {return Some(6.into());}
+		
+		return None;
+	}
+	
+	return None;
+}
+
+pub fn sumoverpartitions<const HARD_MODE: bool>(
+	guessable_words: &[WordleWord], 
+	possible_answers: &[WordleAnswer],
+	remaining_guesses: u8,
+	guess: WordleWord,
+	β: GuessTotal
+) -> GuessTotal {
+	let mut partitions = Partitions::new(guess, possible_answers);
+	
+	let mut total_lower_bound: GuessTotal = GuessTotal::Number(0);
+	
+	for (_clue, partition) in &partitions {
+		if partition.is_empty() {continue;}
+		if _clue == WordleClue::GGGGG {total_lower_bound+=GuessTotal::Number(1); continue;}
+		
+		match minoverwords_fast_bound(partition, remaining_guesses, β - total_lower_bound - partition.len() as u16) {
+			Some(x) => {
+				total_lower_bound += x + partition.len() as u16;
+			},
+			None => {
+				// minoverwords(possible_answers=H) ≥ 2|H|-1
+				// TODO: justify this (better) lower bound
+				total_lower_bound += (3*partition.len() - 1) as u16;
+			},
+		}
+		
+		if total_lower_bound > β {return β;}
+	}
+	
+	if remaining_guesses>=4 {println!("{guess:?} lower bound = {total_lower_bound}");}
+	
+	let new_guessable_words = if HARD_MODE {
+		todo!("implement hard mode")
+	} else {
+		guessable_words
+	};
+	
+	let mut total: GuessTotal = 0.into();
+	
+	partitions.sort();
+	
+	for (_clue, partition) in &partitions {
+		if _clue == WordleClue::GGGGG {continue;}
+		if remaining_guesses>=4 {print!("{:?}: ...\r", _clue);std::io::Write::flush(&mut std::io::stdout()).unwrap();}
+		
+		let x = minoverwords::<HARD_MODE>(
+			new_guessable_words,
+			partition.as_ref(), 
+			remaining_guesses, 
+			β
+		);
+		if remaining_guesses>=4 {println!("  {_clue:?} {x} {}", 3*partition.len()-1);}
+		
+		total += x;
+		
+		if total >= β {return β;}
+	}
+	
+	if remaining_guesses>=4 {println!("{guess:?} actual = {}", total + possible_answers.len() as u16);}
+	
+	// W = Guessable words, H = possible answers
+	// f(H) = |H| + min_{g∈W} ∑_{c∈C|c≠GGGGG} f(H.partition(g,c))
+	total + possible_answers.len() as u16
+}
+
+
+pub fn best_word(state: &WordleState) -> (WordleWord, GuessTotal) {
+	if state.current_entry == 0 {
+		if state.hard_mode {
+			(WordleWord::SALET, 8122.into())
+		} else {
+			(WordleWord::SALET, 7920.into())
+		}
+	} else {
+		let possible_answers = (0..NUM_WORDLE_ANSWERS)
+			.map(|i| WordleAnswer::from(i))
+			.filter(|&a| state.is_possible_answer(a))
+			.collect::<Box<[WordleAnswer]>>();
+		if possible_answers.is_empty() {panic!("no possible answers");}
+		
+		if state.hard_mode {panic!("todo")}
+		let guessable_words = (0..NUM_WORDLE_WORDS)
+			.map(|i| WordleWord::from(i))
+			.collect::<Box<[WordleWord]>>();
+		if guessable_words.is_empty() {panic!("no guessable words")}
+		
+		let mut β = GuessTotal::Infinity;
+		let mut best_word = WordleWord::from(0);
+		
+		let remaining_guesses = (WORDLE_GUESSES - state.current_entry) as u8;
+		
+		for &guess in guessable_words.as_ref() {
+			print!("{:?}: {}\r", guess, β);
+			std::io::Write::flush(&mut std::io::stdout()).unwrap();
+			
+			let b = sumoverpartitions::<false>(
+					guessable_words.as_ref(),
+					possible_answers.as_ref(), 
+					remaining_guesses-1,
+					guess, 
+					β
+				);
+			
+			if b < β {
+				β = b;
+				best_word = guess;
+				println!("{:?}: {}", guess, β);
+			}
+		}
+		
+		(best_word, β)
+	}
+}
 
 
 #[cfg(test)]

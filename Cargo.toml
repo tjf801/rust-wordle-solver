@@ -14,9 +14,9 @@ bin = []
 [profile.release] 
 debug = true
 
-[lib]
-name = "wordlebotlib"
-path = "src/lib.rs"
+#[lib]
+#name = "wordlebotlib"
+#path = "src/lib.rs"
 
 [[bin]]
 name = "wordlebot"

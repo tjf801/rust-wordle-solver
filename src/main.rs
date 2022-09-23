@@ -17,19 +17,8 @@ fn main() {
 	
 	let mut state = WordleState::new();
 	
-	state.hard_mode = true;
-	state.push_entry(WordleEntry {guess: WordleWord::LEARN, clue: WordleClue::BYBYB});
-	state.push_entry(WordleEntry {guess: WordleWord::RIPER, clue: WordleClue::YYYYB});
-	// state.push_entry(WordleEntry {guess: WordleWord::DIVER, clue: WordleClue::_G_GG});
-	// state.push_entry(WordleEntry {guess: WordleWord::TIMER, clue: WordleClue::_G_GG});
+	state.hard_mode = false;
+	state.push_entry(WordleEntry {guess: WordleWord::LEARN, clue: WordleClue::BBYYY});
 	
-	let w = state.get_best_word(6);
-	
-	// state.push_entry(WordleEntry {guess: WordleWord::AROSE, clue: WordleClue::BLANK});
-	// let w = state.min_dist_possibility_minimax(
-	// 	&possible_answers, WordleWord::AROSE,
-	// 	3, WordleScore::MIN, WordleScore::MAX
-	// );
-	
-	println!("\n{:?}", w); // */
+	println!("{:?}", best_word(&state));
 }
