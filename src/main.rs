@@ -18,7 +18,7 @@ fn main() {
 	let mut state = WordleState::new();
 	
 	state.hard_mode = false;
-	state.push_entry(WordleEntry {guess: WordleWord::LEARN, clue: WordleClue::BBYYY});
+	state.push_entry(WordleEntry {guess: WordleWord::LEARN, clue: WordleClue::GGGBB});
 	
 	println!("{:?}", best_word(&state));
 }

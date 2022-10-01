@@ -70,6 +70,11 @@ impl std::ops::Sub<u16> for GuessTotal {
 		}
 	}
 }
+impl<T> std::ops::SubAssign<T> for GuessTotal where GuessTotal: std::ops::Sub<T, Output=GuessTotal> {
+	fn sub_assign(&mut self, rhs: T) {
+		*self = *self - rhs;
+	}
+}
 impl std::cmp::PartialOrd for GuessTotal {
 	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
 		match (self, other) {

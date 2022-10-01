@@ -1,5 +1,3 @@
-use std::lazy::SyncOnceCell;
-
 /// TODO: this doesnt take into account that the word is exactly five letters, and so that seems like some missed optimization -- but also it doesnt really matter since this is only really done at compile time
 /// TODO: make this run at compile time instead of runtime - but rusts const evaluator shits itself when it has to evaluate this several million times and makes the already slow compilation completely unmanageable (it took at least 30 minutes, but afaik it could take 10 hours cuz i didnt let it finish)
 const fn get_clues_uncached(guess: &[u8], answer: &[u8]) -> WordleClue {
@@ -107,7 +105,7 @@ const fn get_clues_uncached(guess: &[u8], answer: &[u8]) -> WordleClue {
 
 type ClueCache = [[WordleClue; NUM_WORDLE_ANSWERS]; NUM_WORDLE_WORDS];
 /// TODO: should this just be `thread_local!` instead of `SyncOnceCell`?
-static CLUE_CACHE: SyncOnceCell<Box<ClueCache>> = SyncOnceCell::new();
+static CLUE_CACHE: std::sync::OnceLock<Box<ClueCache>> = std::sync::OnceLock::new();
 
 fn initialize_clue_cache() -> Box<ClueCache> {
     // ClueCache is literally too big to put on the stack.
