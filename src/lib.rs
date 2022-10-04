@@ -668,6 +668,8 @@ pub fn minoverwords_medium_bound<const HARD_MODE: bool>(
 			if c1 != c2 && c1 != c3 && c2 != c3 {
 				return Some(6.into());
 			}
+		}
+	}
 	if possible_answers.len() == 4 {
 		// many more possibilities here
 		// possible partitions: (1 in parens means its solved)
@@ -676,6 +678,7 @@ pub fn minoverwords_medium_bound<const HARD_MODE: bool>(
 		// 3. {3, (1)} => 10 (guesses>=4) [2, 3, 4, 1]
 		for i in 0..4 {
 			
+		}
 		// otherwise, we can't guess all the answers without running out of guesses
 		return Some(GuessTotal::Infinity);
 	}
@@ -864,11 +867,6 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			}
 		}
 	}
-			}
-		} else {
-			// minoverwords(possible_answers=H) ≥ 2|H|-1
-			(2*partition.len() - 1) as u16
-		};
 	
 	// LOOP 2: improves the lower bound, but its slower
 	for (clue, partition) in &partitions {
