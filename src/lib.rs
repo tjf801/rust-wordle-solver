@@ -527,82 +527,6 @@ include!("total_guesses.rs");
 const WORDLE_GUESSES: usize = 6;
 
 
-pub fn minoverwords<const HARD_MODE: bool>(
-	guessable_words: &[WordleWord], 
-	possible_answers: &[WordleAnswer], 
-	remaining_guesses: u8, 
-	mut β: GuessTotal
-) -> GuessTotal {
-	if remaining_guesses == 0 {return GuessTotal::Infinity;}
-	else if possible_answers.is_empty() {panic!("no possible answers");}
-	else if guessable_words.is_empty() {panic!("no guessable words");}
-	else if possible_answers.len() == 1 {
-		// if there is only one possible answer, we can just guess it
-		return 1.into();
-	}
-	else if GuessTotal::Number(2*possible_answers.len()as u16-1) >= β {return β;}
-	else if possible_answers.len() == 2 {
-		// this is because in the two possibilities, the best you can do is just guess one of them
-		// making one possible answer have a score of 1 and the other have a score of 2
-		if remaining_guesses > 1 {
-			return 3.into();
-		} else {
-			return GuessTotal::Infinity; // we can't guess both
-		}
-	}
-	else if possible_answers.len() == 3 {
-		// if there are three possibilities, there are different cases
-		// 1. num_guesses >= 2 ∃word∈possible_answers s.t. the clues for each answer are all different
-		//        in this case, the splitting answer has a score of 1, and the others have 2, making the score 5
-		// 2. num_guesses >= 3:
-		//        just guess all the answers in order, making the three possibilities have scores 1, 2, and 3
-		//        making the score 6, which is the same as case 3, but without a full loop!
-		// 3. num_guesses >= 2 and ∃word∈guessable_words s.t the clues for each answer are all different
-		//	      in this case, all the answers have a score of 2, making the score 6
-		
-		// check for case 1
-		// NOTE: we know that the first answer will be GGGGG when we guess it (which MUST be different
-		//       from the other answers), so we don't need to check for that
-		if get_clues(possible_answers[0].into(), possible_answers[1]) != get_clues(possible_answers[0].into(), possible_answers[2])
-		|| get_clues(possible_answers[1].into(), possible_answers[0]) != get_clues(possible_answers[1].into(), possible_answers[2])
-		|| get_clues(possible_answers[2].into(), possible_answers[0]) != get_clues(possible_answers[2].into(), possible_answers[1]) {
-			return 5.into();
-		}
-		
-		// check for case 2
-		// if we have enough guesses to just guess all the answers, just do that
-		if remaining_guesses >= 3 {return 6.into();}
-		
-		// if we are able to split the answers and get them all in 2, then we can just return 6
-		for &word in guessable_words {
-			let (c1, c2, c3) = (
-				get_clues(word, possible_answers[0]),
-				get_clues(word, possible_answers[1]),
-				get_clues(word, possible_answers[2]),
-			);
-			
-			if c1 != c2 && c1 != c3 && c2 != c3 {
-				return 6.into();
-			}
-		}
-		
-		// otherwise, we can't guess all the answers without running out of guesses
-		return GuessTotal::Infinity;
-	}
-	
-	for &guess in guessable_words {
-		β = sumoverpartitions::<HARD_MODE>(
-				guessable_words,
-				possible_answers, 
-				remaining_guesses-1,
-				guess, 
-				β
-			);
-	}
-	
-	β
-}
-
 #[inline(always)]
 pub fn minoverwords_fast_bound(
 	possible_answers: &[WordleAnswer], 
@@ -615,9 +539,9 @@ pub fn minoverwords_fast_bound(
 		// if there is only one possible answer, we can just guess it
 		return Some(1.into());
 	}
-	else if GuessTotal::Number(2*possible_answers.len()as u16-1) >= β {
-		return Some(GuessTotal::Number(2*possible_answers.len()as u16-1));
-	}
+	// else if GuessTotal::Number(2*possible_answers.len()as u16 - 1) >= β {
+	// 	return Some(GuessTotal::Number(2*possible_answers.len()as u16 - 1));
+	// }
 	else if remaining_guesses == 1 {
 		return Some(GuessTotal::Infinity);
 	}
@@ -625,7 +549,8 @@ pub fn minoverwords_fast_bound(
 		// this is because in the two possibilities, the best you can do is just guess one of them
 		// making one possible answer have a score of 1 and the other have a score of 2
 		return Some(3.into());
-	}
+	} else if true {return None}
+	
 	else if possible_answers.len() == 3 {
 		// if there are three possibilities, there are different cases
 		// 1. num_guesses >= 2 ∃word∈possible_answers s.t. the clues for each answer are all different
@@ -633,8 +558,6 @@ pub fn minoverwords_fast_bound(
 		// 2. num_guesses >= 3:
 		//        just guess all the answers in order, making the three possibilities have scores 1, 2, and 3
 		//        making the score 6, which is the same as case 3, but without a full loop!
-		// 3. num_guesses >= 2 and ∃word∈guessable_words s.t the clues for each answer are all different
-		//	      in this case, all the answers have a score of 2, making the score 6
 		
 		// check for case 1
 		// NOTE: we know that the first answer will be GGGGG when we guess it (which MUST be different
@@ -648,42 +571,92 @@ pub fn minoverwords_fast_bound(
 		// check for case 2
 		// if we have enough guesses to just guess all the answers, just do that
 		if remaining_guesses >= 3 {return Some(6.into());}
-		
-		// either case 3 or we can't guess all the answers without running out of guesses
-		return None;
 	}
-	if possible_answers.len() == 4 {
+	else if possible_answers.len() == 4 && false {
 		// many more possibilities here
 		// possible partitions: (1 in parens means its solved)
 		// 1. {1, 1, 1, (1)} => 7 (guesses>=2) [2, 2, 2, 1]
 		// 2. {2, 1, (1)} => 8 (guesses>=3) [2, 3, 2, 1]
 		// 3. {3, (1)} => 10 (guesses>=4) [2, 3, 4, 1]
-		for i in 0..4 {
-			
-		}
 		
 		// 4. {1, 1, 1, 1} => 8 (guesses>=2) [2, 2, 2, 2]
 		// 5. {2, 1, 1} => 9 (guesses>=3) [2, 3, 2, 2]
 		// 6. {2, 2} => 10 (guesses>=3) [2, 3, 2, 3]
+		// (all other cases are ignorable, case 3 is better)
 		
-		// 7. not solvable
+		// 7. unsolvable
+		
+		// check for case 1
+		// if remaining_guesses >= 2 (trivially true due to above)
+		// i am so sorry for this code
+		let (c01, c02, c03) = (
+			get_clues(possible_answers[0].into(), possible_answers[1]),
+			get_clues(possible_answers[0].into(), possible_answers[2]),
+			get_clues(possible_answers[0].into(), possible_answers[3]),
+		);
+		if c01 != c02 && c01 != c03 && c02 != c03 {
+			return Some(7.into());
+		}
+		let (c10, c12, c13) = (
+			get_clues(possible_answers[1].into(), possible_answers[0]),
+			get_clues(possible_answers[1].into(), possible_answers[2]),
+			get_clues(possible_answers[1].into(), possible_answers[3]),
+		);
+		if c10 != c12 && c10 != c13 && c12 != c13 {
+			return Some(7.into());
+		}
+		let (c20, c21, c23) = (
+			get_clues(possible_answers[2].into(), possible_answers[0]),
+			get_clues(possible_answers[2].into(), possible_answers[1]),
+			get_clues(possible_answers[2].into(), possible_answers[3]),
+		);
+		if c20 != c21 && c20 != c23 && c21 != c23 {
+			return Some(7.into());
+		}
+		let (c30, c31, c32) = (
+			get_clues(possible_answers[3].into(), possible_answers[0]),
+			get_clues(possible_answers[3].into(), possible_answers[1]),
+			get_clues(possible_answers[3].into(), possible_answers[2]),
+		);
+		if c30 != c31 && c30 != c32 && c31 != c32 {
+			return Some(7.into());
+		}
+		
+		// check for case 2
+		if remaining_guesses >= 3 {
+			// if any of the clues are different, then there must be a partition of 
+			// size at most 2, but since we just checked if there are only partitions 
+			// of size 1, it must be size 2
+			if c01 != c02 || c01 != c03 
+			|| c10 != c12 || c10 != c13
+			|| c20 != c21 || c20 != c23 
+			|| c30 != c31 || c30 != c32 {
+				return Some(8.into());
+			}
+		}
+		
+		// check for case 3
+		if remaining_guesses >= 4 {
+			// you can always just guess all the guesses in order
+			return Some(10.into());
+		}
 	}
 	
 	return None;
 }
 
 #[inline(always)]
-pub fn minoverwords_medium_bound(
+pub fn minoverwords_medium_bound<const HARD_MODE: bool>(
 	guessable_words: &[WordleWord], 
 	possible_answers: &[WordleAnswer], 
 	remaining_guesses: u8, 
-	mut β: GuessTotal
+	β: GuessTotal
 ) -> Option<GuessTotal> {
 	// TODO: make sure this doesnt slow things down too much
 	if let Some(lb) = minoverwords_fast_bound(possible_answers, remaining_guesses, β) {
 		return Some(lb);
 	}
-	else if possible_answers.len() == 3 {
+	/*else if possible_answers.len() == 3 {
 		// only remaining (solvable) case here is case 3, bc the other two would have been caught above
 		// if we are able to split the answers and get them all in 2, then we can just return 6
 		for &word in guessable_words {
@@ -696,14 +669,126 @@ pub fn minoverwords_medium_bound(
 			if c1 != c2 && c1 != c3 && c2 != c3 {
 				return Some(6.into());
 			}
-		}
-		
+	if possible_answers.len() == 4 {
+		// many more possibilities here
+		// possible partitions: (1 in parens means its solved)
+		// 1. {1, 1, 1, (1)} => 7 (guesses>=2) [2, 2, 2, 1]
+		// 2. {2, 1, (1)} => 8 (guesses>=3) [2, 3, 2, 1]
+		// 3. {3, (1)} => 10 (guesses>=4) [2, 3, 4, 1]
+		for i in 0..4 {
+			
 		// otherwise, we can't guess all the answers without running out of guesses
 		return Some(GuessTotal::Infinity);
 	}
+	else if possible_answers.len() == 4 {
+		// 4. {1, 1, 1, 1} => 8 (guesses>=2) [2, 2, 2, 2]
+		// 5. {2, 1, 1} => 9 (guesses>=3) [2, 3, 2, 2]
+		// 6. {2, 2} => 10 (guesses>=3) [2, 3, 2, 3]
+		// (all other cases are ignorable, case 3 would have caught it)
+		
+		// 7. unsolvable
+		
+		let mut min = GuessTotal::Infinity;
+		
+		for &word in guessable_words {
+			let (c1, c2, c3, c4) = (
+				get_clues(word, possible_answers[0]),
+				get_clues(word, possible_answers[1]),
+				get_clues(word, possible_answers[2]),
+				get_clues(word, possible_answers[3]),
+			);
+			
+			// check for case 4
+			if c1 != c2 && c1 != c3 && c1 != c4 && c2 != c3 && c2 != c4 && c3 != c4 {
+				return Some(8.into());
+			}
+			
+			if remaining_guesses >= 3 {
+				// check for case 5
+				if (c1 != c2 && c1 != c3 && c2 != c3) || (c1 != c2 && c1 != c4 && c2 != c4) || (c1 != c3 && c1 != c4 && c3 != c4) || (c2 != c3 && c2 != c4 && c3 != c4) {
+					min = min.min(9.into());
+				}
+				
+				// check for case 6
+				if (c1 == c2 && c3 == c4 && c1 != c3) || (c1 == c3 && c2 == c4 && c1 != c2) || (c1 == c4 && c2 == c3 && c1 != c2) {
+					min = min.min(10.into());
+				}
+			}
+		}
+		
+		return Some(min);
+	}
 	
-	None // TODO
+	
+	// check for a perfect guess that uniquely determines what answer you have, 
+	// because if there is one, we can just guess it and be done in one more move
+	
+	let mut counts: [usize; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
+	let mut good_answer = None::<WordleAnswer>;
+	
+	for &guess in possible_answers {
+		counts.fill(0);
+		
+		let mut bad_partitions = 0;
+		
+		for &answer in possible_answers {
+			let c = get_clues(guess.into(), answer);
+			counts[usize::from(c)] += 1;
+			bad_partitions += (counts[usize::from(c)] >= 2) as usize;
+		}
+		
+		if bad_partitions == 0 {
+			// the test word splits the answers into unique partitions, so it is the best one can do
+			// (1, 1, 1... , *1)
+			return Some(GuessTotal::Number(2*possible_answers.len() as u16 - 1));
+		} else if bad_partitions == 1 {
+			// the test word splits the answers unique partitions, aside from one that is 2
+			// (2, 1, 1, ... , *1)
+			
+			// and since aside from the above case, this is the best one can do, we can just mark this as the best answer and continue
+			good_answer = Some(guess);
+		}
+	}
+	
+	if good_answer.is_some() {
+		return Some(GuessTotal::Number(2*possible_answers.len() as u16));
+	} */
+	
+	None 
 }
+
+
+pub fn minoverwords<const HARD_MODE: bool>(
+	guessable_words: &[WordleWord], 
+	possible_answers: &[WordleAnswer], 
+	remaining_guesses: u8, 
+	mut β: GuessTotal
+) -> GuessTotal {
+	if let Some(score) = minoverwords_medium_bound::<HARD_MODE>(
+		guessable_words, 
+		possible_answers, 
+		remaining_guesses, 
+		β
+	) {
+		if remaining_guesses >= 4 || true {
+			println!("               {remaining_guesses} minoverwords_medium_bound: {score:?}");
+		}
+		return score;
+	}
+	
+	for guess in possible_answers.iter().map(|&x| x.into()).chain(guessable_words.iter().copied()) {
+		β = sumoverpartitions::<HARD_MODE>(
+				guessable_words,
+				possible_answers, 
+				remaining_guesses-1,
+				guess, 
+				β
+			);
+	}
+	
+	β
+}
+
 
 
 /// This function is used to calculate the minimum number of guesses needed to solve the puzzle
@@ -726,6 +811,7 @@ pub fn minoverwords_medium_bound(
 /// ## Return value:
 /// * `β` if `v` ≤ `β`
 /// * some number between `β` and `v` otherwise
+/// TODO: add a cache for this function - bc the result might be the same as another call that has been computed already
 pub fn sumoverpartitions<const HARD_MODE: bool>(
 	guessable_words: &[WordleWord], 
 	possible_answers: &[WordleAnswer],
@@ -737,12 +823,10 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 	let mut partitions = Partitions::new(guess, possible_answers);
 	
 	let mut total_lower_bound: GuessTotal = GuessTotal::Number(0);
-	let mut lower_bounds: [u16; NUM_WORDLE_CLUES] = [0; NUM_WORDLE_CLUES];
+	let mut lower_bounds = [0u16; NUM_WORDLE_CLUES];
 	
 	// any partitions that have been fully solved in the fast loops get marked to be removed
 	let mut done_partitions: [bool; NUM_WORDLE_CLUES] = [false; NUM_WORDLE_CLUES];
-	
-	
 	
 	// LOOP 1: fast bound check to quickly refute really bad guesses
 	for (clue, partition) in &partitions {
@@ -760,6 +844,9 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			match lower_bound {
 				GuessTotal::Infinity => return GuessTotal::Infinity,
 				GuessTotal::Number(n) => {
+					if remaining_guesses >= 4 {
+						println!("{lower_bound:?} + {partition:?} = {n}");
+					}
 					done_partitions[usize::from(clue)] = true;
 					n
 				}
@@ -769,14 +856,18 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			(2*partition.len() - 1) as u16
 		};
 		
+		if remaining_guesses >= 4 {
+			println!("{clue:?} {partition_lower_bound:?} {}", partition.len() as u16);
+		}
+		
 		total_lower_bound += partition_lower_bound;
 		
 		if total_lower_bound > β {return total_lower_bound}
-		
+	
 		lower_bounds[usize::from(clue)] = partition_lower_bound;
 	}
 	
-	if remaining_guesses>=4 {println!("{guess:?} lower bound = {total_lower_bound}");}
+	if remaining_guesses>=3 {println!("{}{guess:?} lower bound = {total_lower_bound}", "  ".repeat(6-remaining_guesses as usize));}
 	
 	// remove any partitions that are definitely correct
 	for partition in &mut partitions.partitions {
@@ -786,9 +877,14 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			}
 		}
 	}
+			}
+		} else {
+			// minoverwords(possible_answers=H) ≥ 2|H|-1
+			(2*partition.len() - 1) as u16
+		};
 	
 	
-	
+	/*
 	// LOOP 2: improves the lower bound, but its slower
 	for (clue, partition) in &partitions {
 		debug_assert!(!partition.is_empty()); // we already removed all the empty partitions
@@ -802,9 +898,9 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 		
 		// checks if the guess literally gives us no new information, and if so dont bother with it
 		// yes i know this violates the invariant that the returned value is between β and v but its fine
-		if partition.len() == possible_answers.len() && new_guessable_words.len() == guessable_words.len() {
-			return GuessTotal::Infinity;
-		}
+		// if partition.len() == possible_answers.len() && new_guessable_words.len() == guessable_words.len() {
+		// 	return GuessTotal::Infinity;
+		// }
 		
 		total_lower_bound -= lower_bounds[usize::from(clue)];
 		
@@ -812,15 +908,16 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			// minoverwords(possible_answers=H) ≥ 2|H|-1
 			// but we know that the case of 2|H|-1 is handled by the fast bound
 			(2*partition.len()) as u16
-			// TODO: add a cache here for this - bc the result might be the same as somewhen before
-		} else if let Some(lower_bound) = minoverwords_medium_bound(
+		} else if let Some(lower_bound) = minoverwords_medium_bound::<HARD_MODE>(
 			new_guessable_words, 
 			partition, 
 			remaining_guesses-1, 
 			β - total_lower_bound - partition.len() as u16
 		) {
 			match lower_bound {
-				GuessTotal::Infinity => return GuessTotal::Infinity,
+				GuessTotal::Infinity => {
+					return GuessTotal::Infinity
+				},
 				GuessTotal::Number(n) => {
 					// we found the exact value for this partition, so we dont need to refine it any farther
 					done_partitions[usize::from(clue)] = true;
@@ -846,33 +943,37 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			}
 		}
 	}
+	*/
 	
-	
+	if remaining_guesses>=3 {println!("{}{guess:?} lower bound 2 = {total_lower_bound}; {}", "  ".repeat(6-remaining_guesses as usize), lower_bounds.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", "));}
 	
 	// LOOP 3: calculate the true value of the function
+	// partitions.sort_by_size();
 	
-	partitions.sort_by_size();
-	
-	let mut total: GuessTotal = 0.into();
+	let mut total: GuessTotal = total_lower_bound;
 	
 	for (_clue, partition) in &partitions {
-		if _clue == WordleClue::GGGGG {continue;}
-		if remaining_guesses>=4 {print!("{:?}: ...\r", _clue);std::io::Write::flush(&mut std::io::stdout()).unwrap();}
+		debug_assert_ne!(_clue, WordleClue::GGGGG);
+		// if remaining_guesses>=4 {print!("  {_clue:?}: ...");std::io::Write::flush(&mut std::io::stdout()).unwrap();}
 		
-		let x = minoverwords::<HARD_MODE>(
+		total -= lower_bounds[usize::from(_clue)];
+		
+		let v = minoverwords::<HARD_MODE>(
 			guessable_words, // TODO: new_guessable_words
 			partition.as_ref(), 
 			remaining_guesses, 
 			β
 		);
-		if remaining_guesses>=4 {println!("  {_clue:?} {x} {}", 3*partition.len()-1);}
+		if remaining_guesses>=4 {println!("{}{_clue:?}: {v}   ", "  ".repeat(7-remaining_guesses as usize));}
 		
-		total += x;
+		total += v + partition.len() as u16;
 		
 		if total >= β {return total;}
 	}
 	
-	if remaining_guesses>=4 {println!("{guess:?} actual = {}", total + possible_answers.len() as u16);}
+	if remaining_guesses>=4 {println!("{}{guess:?} actual = {}", "  ".repeat(6-remaining_guesses as usize), total);}
+	
+	
 	
 	// W = Guessable words, H = possible answers
 	// f(H) = |H| + min_{g∈W} ∑_{c∈C|c≠GGGGG} f(H.partition(g,c))

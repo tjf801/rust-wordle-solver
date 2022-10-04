@@ -20,5 +20,11 @@ fn main() {
 	state.hard_mode = false;
 	state.push_entry(WordleEntry {guess: WordleWord::LEARN, clue: WordleClue::GGGBB});
 	
-	println!("{:?}", best_word(&state));
+	println!("{:?}", minoverwords::<false>(
+		&[WordleWord::EIGHT, WordleWord::FIGHT, WordleWord::LIGHT, WordleWord::MIGHT, WordleWord::NIGHT], //, WordleWord::RIGHT], 
+		&[WordleAnswer::EIGHT, WordleAnswer::FIGHT, WordleAnswer::LIGHT, WordleAnswer::MIGHT, WordleAnswer::NIGHT], 
+		5, GuessTotal::Infinity
+	));
+	
+	// println!("{:?}", best_word(&state));
 }
