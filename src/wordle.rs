@@ -1,5 +1,5 @@
 
-pub const WORDLE_NUM_GUESSES: usize = 10;
+pub const WORDLE_NUM_GUESSES: usize = 6;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WordleEntry {
@@ -93,7 +93,7 @@ impl WordleState {
 		let mut text = String::new();
 		
 		text += format!("Wordle {} {}/{}{}\n",
-			self.answer.unwrap().day_number(),
+			self.answer.map_or(-1, |answer| answer.day_number() as i32),
 			if self.is_lost() {"X".to_string()} else {self.current_entry.to_string()},
 			WORDLE_NUM_GUESSES,
 			if self.hard_mode {"*"} else {""}

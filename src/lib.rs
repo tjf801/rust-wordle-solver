@@ -444,7 +444,7 @@ impl WordleState {
 
 pub struct Partitions {
 	pub partitions: [Option<(WordleClue, Box<[WordleAnswer]>)>; NUM_WORDLE_CLUES],
-	num_partitions: usize,
+	num_partitions: usize
 }
 impl Partitions {
 	pub fn new(trial_word: WordleWord, prev_possible_answers: &[WordleAnswer]) -> Self {
@@ -472,7 +472,7 @@ impl Partitions {
 		
 		Self {
 			partitions: partitions,
-			num_partitions: size
+			num_partitions: size,
 		}
 	}
 	
@@ -481,7 +481,7 @@ impl Partitions {
 	}
 	
 	pub fn sort_by_size(&mut self) {
-		// sort partitions by size (least to greatest)
+		// sort partitions by size
 		self.partitions.sort_by_key(
 			|x| 
 			x.as_ref()
@@ -539,9 +539,9 @@ pub fn minoverwords_fast_bound(
 		// if there is only one possible answer, we can just guess it
 		return Some(1.into());
 	}
-	// else if GuessTotal::Number(2*possible_answers.len()as u16 - 1) >= β {
-	// 	return Some(GuessTotal::Number(2*possible_answers.len()as u16 - 1));
-	// }
+	else if GuessTotal::Number(2*possible_answers.len()as u16 - 1) >= β {
+		return Some(GuessTotal::Number(2*possible_answers.len()as u16 - 1));
+	}
 	else if remaining_guesses == 1 {
 		return Some(GuessTotal::Infinity);
 	}
@@ -549,8 +549,7 @@ pub fn minoverwords_fast_bound(
 		// this is because in the two possibilities, the best you can do is just guess one of them
 		// making one possible answer have a score of 1 and the other have a score of 2
 		return Some(3.into());
-	} else if true {return None}
-	
+	}
 	else if possible_answers.len() == 3 {
 		// if there are three possibilities, there are different cases
 		// 1. num_guesses >= 2 ∃word∈possible_answers s.t. the clues for each answer are all different
@@ -572,7 +571,7 @@ pub fn minoverwords_fast_bound(
 		// if we have enough guesses to just guess all the answers, just do that
 		if remaining_guesses >= 3 {return Some(6.into());}
 	}
-	else if possible_answers.len() == 4 && false {
+	else if possible_answers.len() == 4 {
 		// many more possibilities here
 		// possible partitions: (1 in parens means its solved)
 		// 1. {1, 1, 1, (1)} => 7 (guesses>=2) [2, 2, 2, 1]
@@ -656,7 +655,7 @@ pub fn minoverwords_medium_bound<const HARD_MODE: bool>(
 	if let Some(lb) = minoverwords_fast_bound(possible_answers, remaining_guesses, β) {
 		return Some(lb);
 	}
-	/*else if possible_answers.len() == 3 {
+	else if possible_answers.len() == 3 {
 		// only remaining (solvable) case here is case 3, bc the other two would have been caught above
 		// if we are able to split the answers and get them all in 2, then we can just return 6
 		for &word in guessable_words {
@@ -752,7 +751,7 @@ pub fn minoverwords_medium_bound<const HARD_MODE: bool>(
 	
 	if good_answer.is_some() {
 		return Some(GuessTotal::Number(2*possible_answers.len() as u16));
-	} */
+	}
 	
 	None 
 }
@@ -770,9 +769,6 @@ pub fn minoverwords<const HARD_MODE: bool>(
 		remaining_guesses, 
 		β
 	) {
-		if remaining_guesses >= 4 || true {
-			println!("               {remaining_guesses} minoverwords_medium_bound: {score:?}");
-		}
 		return score;
 	}
 	
@@ -840,13 +836,10 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			0
 		} else if β - total_lower_bound < GuessTotal::Number(partition.len() as u16) {
 			(2*partition.len() - 1) as u16
-		} else if let Some(lower_bound) = minoverwords_fast_bound(partition, remaining_guesses-1, β - total_lower_bound - partition.len() as u16) {
+		} else if let Some(lower_bound) = minoverwords_fast_bound(partition, remaining_guesses, β - total_lower_bound - partition.len() as u16) {
 			match lower_bound {
 				GuessTotal::Infinity => return GuessTotal::Infinity,
 				GuessTotal::Number(n) => {
-					if remaining_guesses >= 4 {
-						println!("{lower_bound:?} + {partition:?} = {n}");
-					}
 					done_partitions[usize::from(clue)] = true;
 					n
 				}
@@ -856,18 +849,12 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			(2*partition.len() - 1) as u16
 		};
 		
-		if remaining_guesses >= 4 {
-			println!("{clue:?} {partition_lower_bound:?} {}", partition.len() as u16);
-		}
-		
 		total_lower_bound += partition_lower_bound;
 		
 		if total_lower_bound > β {return total_lower_bound}
-	
+		
 		lower_bounds[usize::from(clue)] = partition_lower_bound;
 	}
-	
-	if remaining_guesses>=3 {println!("{}{guess:?} lower bound = {total_lower_bound}", "  ".repeat(6-remaining_guesses as usize));}
 	
 	// remove any partitions that are definitely correct
 	for partition in &mut partitions.partitions {
@@ -883,8 +870,6 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			(2*partition.len() - 1) as u16
 		};
 	
-	
-	/*
 	// LOOP 2: improves the lower bound, but its slower
 	for (clue, partition) in &partitions {
 		debug_assert!(!partition.is_empty()); // we already removed all the empty partitions
@@ -898,9 +883,9 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 		
 		// checks if the guess literally gives us no new information, and if so dont bother with it
 		// yes i know this violates the invariant that the returned value is between β and v but its fine
-		// if partition.len() == possible_answers.len() && new_guessable_words.len() == guessable_words.len() {
-		// 	return GuessTotal::Infinity;
-		// }
+		if partition.len() == possible_answers.len() && new_guessable_words.len() == guessable_words.len() {
+			return GuessTotal::Infinity;
+		}
 		
 		total_lower_bound -= lower_bounds[usize::from(clue)];
 		
@@ -943,18 +928,23 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			}
 		}
 	}
-	*/
 	
-	if remaining_guesses>=3 {println!("{}{guess:?} lower bound 2 = {total_lower_bound}; {}", "  ".repeat(6-remaining_guesses as usize), lower_bounds.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", "));}
 	
 	// LOOP 3: calculate the true value of the function
-	// partitions.sort_by_size();
+	partitions.sort_by_size();
 	
 	let mut total: GuessTotal = total_lower_bound;
 	
 	for (_clue, partition) in &partitions {
+		if remaining_guesses >= 4 {
+			print!("{guess:?}: {_clue:?} ...\r");
+			std::io::Write::flush(&mut std::io::stdout()).unwrap();
+		}
 		debug_assert_ne!(_clue, WordleClue::GGGGG);
-		// if remaining_guesses>=4 {print!("  {_clue:?}: ...");std::io::Write::flush(&mut std::io::stdout()).unwrap();}
+		
+		if β - total < GuessTotal::Number(partition.len() as u16) {
+			continue
+		}
 		
 		total -= lower_bounds[usize::from(_clue)];
 		
@@ -962,22 +952,17 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			guessable_words, // TODO: new_guessable_words
 			partition.as_ref(), 
 			remaining_guesses, 
-			β
+			β - total - partition.len() as u16
 		);
-		if remaining_guesses>=4 {println!("{}{_clue:?}: {v}   ", "  ".repeat(7-remaining_guesses as usize));}
 		
 		total += v + partition.len() as u16;
 		
 		if total >= β {return total;}
 	}
 	
-	if remaining_guesses>=4 {println!("{}{guess:?} actual = {}", "  ".repeat(6-remaining_guesses as usize), total);}
-	
-	
-	
 	// W = Guessable words, H = possible answers
 	// f(H) = |H| + min_{g∈W} ∑_{c∈C|c≠GGGGG} f(H.partition(g,c))
-	total + possible_answers.len() as u16
+	total
 }
 
 
@@ -989,13 +974,15 @@ pub fn best_word(state: &WordleState) -> (WordleWord, GuessTotal) {
 			(WordleWord::SALET, 7920.into())
 		}
 	} else {
-		let possible_answers = (0..NUM_WORDLE_ANSWERS)
+		let mut possible_answers = (0..NUM_WORDLE_ANSWERS)
 			.map(|i| WordleAnswer::from(i))
 			.filter(|&a| state.is_possible_answer(a))
 			.collect::<Box<[WordleAnswer]>>();
 		if possible_answers.is_empty() {panic!("no possible answers");}
 		
-		if state.hard_mode {panic!("todo")}
+		if state.hard_mode {
+			panic!("todo")
+		}
 		let guessable_words = (0..NUM_WORDLE_WORDS)
 			.map(|i| WordleWord::from(i))
 			.collect::<Box<[WordleWord]>>();
@@ -1006,8 +993,8 @@ pub fn best_word(state: &WordleState) -> (WordleWord, GuessTotal) {
 		
 		let remaining_guesses = (WORDLE_GUESSES - state.current_entry) as u8;
 		
-		for &guess in guessable_words.as_ref() {
-			print!("{:?}: {}\r", guess, β);
+		for guess in possible_answers.iter().map(|&x| x.into()).chain(guessable_words.iter().copied()) {
+			print!("{:?}: ...\r", guess);
 			std::io::Write::flush(&mut std::io::stdout()).unwrap();
 			
 			let b = sumoverpartitions::<false>(
@@ -1021,7 +1008,7 @@ pub fn best_word(state: &WordleState) -> (WordleWord, GuessTotal) {
 			if b < β {
 				β = b;
 				best_word = guess;
-				println!("{:?}: {}", guess, β);
+				println!("{:?}: {}       ", guess, β);
 			}
 		}
 		
@@ -1058,47 +1045,26 @@ mod tests {
 	}
 	
 	#[test]
-	fn test_possible_answers() {
-		let mut x = WordleState::default();
+	fn test_minoverwords_1() {
+		let v = minoverwords::<false>(
+			&[WordleWord::EIGHT, WordleWord::FIGHT, WordleWord::LIGHT, WordleWord::MIGHT, WordleWord::NIGHT],
+			&[WordleAnswer::EIGHT, WordleAnswer::FIGHT, WordleAnswer::LIGHT, WordleAnswer::MIGHT, WordleAnswer::NIGHT], 
+			5, GuessTotal::Infinity
+		);
 		
-		x.push_entry(WordleEntry{guess: WordleWord::AROSE, clue: WordleClue::BBBBB});
+		assert_eq!(v, GuessTotal::Number(15));
 		
-		assert_eq!((0..NUM_WORDLE_ANSWERS).map(|i|WordleAnswer::from(i)).filter(|&a| x.is_possible_answer(a)).count(), 182);
+		let v = minoverwords::<false>(
+			&[WordleWord::EIGHT, WordleWord::FIGHT, WordleWord::LIGHT, WordleWord::MIGHT, WordleWord::NIGHT, WordleWord::RIGHT], 
+			&[WordleAnswer::EIGHT, WordleAnswer::FIGHT, WordleAnswer::LIGHT, WordleAnswer::MIGHT, WordleAnswer::NIGHT, WordleAnswer::RIGHT], 
+			6, GuessTotal::Infinity
+		);
+		
+		assert_eq!(v, GuessTotal::Number(21));
 	}
 	
 	#[test]
-	fn test_avg_entropy() {
-		let s = WordleState::default();
-		let e = s.avg_entropy(WordleWord::AROSE);
+	fn test_minoverwords_2() {
 		
-		assert!(5.76 < e && e < 5.78);
-	}
-	
-	#[test]
-	fn test_max_min_entropy() {
-		let s = WordleState::default();
-		
-		let w = s.get_min_worst_case_word();
-		
-		// println!("{} {}", e, String::from_utf8_lossy(&w));
-		
-		// assert_eq!(e, WordleScore {num_remaining_words: 167, avg_clue_score: 0});
-		assert_eq!(w, WordleWord::RAISE);
-	}
-	
-	#[test]
-	fn test_min_worst_depth() {
-		// i have literally only tested this with a modified version that filters only 
-		// possible answers and even THAT takes ~10 seconds, so slowing it down by a 
-		// factor of 10^2 (and 1 / the % of filtered words) takes too long and i rlly 
-		// cant be bothered to wait ~24 HOURS (idk exact time) for it to finish
-		// let mut s = WordleState::default();
-		
-		// let (e, Some(w)) = s.get_min_worst_entropy_word_depth(3).unwrap();
-		
-		// println!("{} {}", e, String::from_utf8_lossy(&w));
-		
-		// assert_eq!(e, 8);
-		// assert!(w == *b"CERTY" || w == *b"RILEY");
 	}
 }

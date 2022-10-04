@@ -18,13 +18,49 @@ fn main() {
 	let mut state = WordleState::new();
 	
 	state.hard_mode = false;
-	state.push_entry(WordleEntry {guess: WordleWord::LEARN, clue: WordleClue::GGGBB});
-	
-	println!("{:?}", minoverwords::<false>(
-		&[WordleWord::EIGHT, WordleWord::FIGHT, WordleWord::LIGHT, WordleWord::MIGHT, WordleWord::NIGHT], //, WordleWord::RIGHT], 
-		&[WordleAnswer::EIGHT, WordleAnswer::FIGHT, WordleAnswer::LIGHT, WordleAnswer::MIGHT, WordleAnswer::NIGHT], 
-		5, GuessTotal::Infinity
-	));
-	
-	// println!("{:?}", best_word(&state));
+	'main: loop {
+		// read guess from stdin
+		let guess = {
+			let mut guess = String::new();
+			print!("Guess: ");
+			std::io::Write::flush(&mut std::io::stdout()).unwrap();
+			std::io::stdin().read_line(&mut guess).unwrap();
+			(0..NUM_WORDLE_WORDS).map(WordleWord::from).find(|word| word.as_str() == guess.trim()).unwrap()
+		};
+		
+		// read clue (as int) from stdin
+		let clue = WordleClue::from({
+			let mut clue = String::new();
+			print!("Clue: ");
+			std::io::Write::flush(&mut std::io::stdout()).unwrap();
+			std::io::stdin().read_line(&mut clue).unwrap();
+			clue.trim().parse::<u16>().unwrap() as usize
+		});
+		
+		state.push_entry(WordleEntry {guess: guess, clue: clue});
+		
+		println!("{:?}", best_word(&state));
+		
+		state.pop_entry();
+		
+		'options: loop {
+			println!("{}", state.share_text());
+			
+			match {
+				let mut option = String::new();
+				print!("quit, next, or back: ");
+				std::io::Write::flush(&mut std::io::stdout()).unwrap();
+				std::io::stdin().read_line(&mut option).unwrap();
+				option
+			}.as_str().trim() {
+				"quit" => break 'main,
+				"next" => continue 'main,
+				"back" => {
+					state.pop_entry();
+					continue 'options;
+				},
+				option => panic!("invalid option {}", option),
+			}
+		}
+	}
 }
