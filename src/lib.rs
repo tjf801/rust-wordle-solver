@@ -669,16 +669,7 @@ pub fn minoverwords_medium_bound<const HARD_MODE: bool>(
 				return Some(6.into());
 			}
 		}
-	}
-	if possible_answers.len() == 4 {
-		// many more possibilities here
-		// possible partitions: (1 in parens means its solved)
-		// 1. {1, 1, 1, (1)} => 7 (guesses>=2) [2, 2, 2, 1]
-		// 2. {2, 1, (1)} => 8 (guesses>=3) [2, 3, 2, 1]
-		// 3. {3, (1)} => 10 (guesses>=4) [2, 3, 4, 1]
-		for i in 0..4 {
-			
-		}
+		
 		// otherwise, we can't guess all the answers without running out of guesses
 		return Some(GuessTotal::Infinity);
 	}
