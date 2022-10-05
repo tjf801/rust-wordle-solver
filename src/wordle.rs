@@ -86,7 +86,7 @@ impl WordleState {
 	}
 	
 	pub fn is_possible_hardmode_word(&self, possible_word: WordleWord) -> bool {
-		true // TODO: make this actually correct
+		panic!("TODO") // TODO: make this actually correct
 	}
 	
 	pub fn share_text(&self) -> String {
