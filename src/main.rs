@@ -29,19 +29,17 @@ fn main() {
 		};
 		
 		// read clue (as int) from stdin
-		let clue = WordleClue::from({
+		let clue = {
 			let mut clue = String::new();
 			print!("Clue: ");
 			std::io::Write::flush(&mut std::io::stdout()).unwrap();
 			std::io::stdin().read_line(&mut clue).unwrap();
-			clue.trim().parse::<u16>().unwrap() as usize
-		});
+			(0..NUM_WORDLE_WORDS).map(WordleClue::from).find(|c| format!("{c:?}") == clue.trim()).unwrap()
+		};
 		
 		state.push_entry(WordleEntry {guess: guess, clue: clue});
 		
 		println!("{:?}", best_word(&state));
-		
-		state.pop_entry();
 		
 		'options: loop {
 			println!("{}", state.share_text());
