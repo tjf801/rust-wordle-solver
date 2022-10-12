@@ -19,7 +19,7 @@ impl WordleEntry {
 pub struct WordleState {
 	pub answer: Option<WordleAnswer>,
 	pub hard_mode: bool,
-	current_entry: usize, // "size"
+	pub current_entry: usize, // "size"
 	pub entries: [Option<WordleEntry>; WORDLE_NUM_GUESSES]
 }
 

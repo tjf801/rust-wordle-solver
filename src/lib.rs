@@ -318,6 +318,9 @@ pub fn minoverwords_medium_bound<const HARD_MODE: bool>(
 	
 	if good_answer.is_some() {
 		return Some(GuessTotal::Number(2*possible_answers.len() as u16));
+	} else if remaining_guesses <= 2 {
+		// if there isnt a perfect guess and we only have two guesses, we cant win
+		return Some(GuessTotal::Infinity);
 	}
 	
 	None 
@@ -340,13 +343,15 @@ pub fn minoverwords<const HARD_MODE: bool>(
 	}
 	
 	for guess in possible_answers.iter().map(|&x| x.into()).chain(guessable_words.iter().copied()) {
-		β = sumoverpartitions::<HARD_MODE>(
+		let total = sumoverpartitions::<HARD_MODE>(
 				guessable_words,
 				possible_answers, 
 				remaining_guesses-1,
 				guess, 
 				β
 			);
+		
+		β = β.min(total);
 	}
 	
 	β
@@ -372,7 +377,7 @@ pub fn minoverwords<const HARD_MODE: bool>(
 /// * `v` - |H| + min_{g ∈ W} sumoverpartitions(H, W, g, β) # TODO make a more formal definition
 /// 
 /// ## Return value:
-/// * `β` if `v` ≤ `β`
+/// * `v` if `v` ≤ `β`
 /// * some number between `β` and `v` otherwise
 /// TODO: add a cache for this function - bc the result might be the same as another call that has been computed already
 pub fn sumoverpartitions<const HARD_MODE: bool>(
@@ -453,7 +458,8 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 		
 		let partition_lower_bound = (partition.len() as u16) + if β - total_lower_bound < GuessTotal::Number(partition.len() as u16) {
 			// minoverwords(possible_answers=H) ≥ 2|H|-1
-			// but we know that the case of 2|H|-1 is handled by the fast bound
+			// but we know that it is not 2|H|-1 (found by fast bound above)
+			// so we know that the lower bound is at least 2|H|
 			(2*partition.len()) as u16
 		} else if let Some(lower_bound) = minoverwords_medium_bound::<HARD_MODE>(
 			new_guessable_words, 
@@ -477,7 +483,7 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 		};
 		
 		total_lower_bound += partition_lower_bound;
-		if total_lower_bound > β {return total_lower_bound;}
+		if total_lower_bound > β {return total_lower_bound}
 		
 		lower_bounds[usize::from(clue)] = partition_lower_bound;
 	}
@@ -491,19 +497,12 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 		}
 	}
 	
-	
 	// LOOP 3: calculate the true value of the function
 	partitions.sort_by_size();
 	
 	let mut total: GuessTotal = total_lower_bound;
 	
 	for (_clue, partition) in &partitions {
-		if remaining_guesses >= 4 {
-			print!("{guess:?}: {_clue:?} ...\r");
-			std::io::Write::flush(&mut std::io::stdout()).unwrap();
-		}
-		debug_assert_ne!(_clue, WordleClue::GGGGG);
-		
 		if β - total < GuessTotal::Number(partition.len() as u16) {
 			continue
 		}
@@ -515,9 +514,11 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 			partition.as_ref(), 
 			remaining_guesses, 
 			β - total - partition.len() as u16
-		);
+		) + partition.len() as u16;
 		
-		total += v + partition.len() as u16;
+		debug_assert!(v >= GuessTotal::Number(lower_bounds[usize::from(_clue)]));
+		
+		total += v;
 		
 		if total >= β {return total;}
 	}
@@ -528,54 +529,46 @@ pub fn sumoverpartitions<const HARD_MODE: bool>(
 }
 
 
-pub fn best_word(state: &WordleState) -> (WordleWord, GuessTotal) {
-	if state.current_entry == 0 {
-		if state.hard_mode {
-			(WordleWord::SALET, 8122.into())
-		} else {
-			(WordleWord::SALET, 7920.into())
-		}
-	} else {
-		let mut possible_answers = (0..NUM_WORDLE_ANSWERS)
-			.map(|i| WordleAnswer::from(i))
-			.filter(|&a| state.is_possible_answer(a))
-			.collect::<Box<[WordleAnswer]>>();
-		if possible_answers.is_empty() {panic!("no possible answers");}
-		
-		if state.hard_mode {
-			panic!("todo")
-		}
-		let guessable_words = (0..NUM_WORDLE_WORDS)
-			.map(|i| WordleWord::from(i))
-			.collect::<Box<[WordleWord]>>();
-		if guessable_words.is_empty() {panic!("no guessable words")}
-		
-		let mut β = GuessTotal::Infinity;
-		let mut best_word = WordleWord::from(0);
-		
-		let remaining_guesses = (WORDLE_NUM_GUESSES - state.current_entry) as u8;
-		
-		for guess in possible_answers.iter().map(|&x| x.into()).chain(guessable_words.iter().copied()) {
-			print!("{:?}: ...\r", guess);
-			std::io::Write::flush(&mut std::io::stdout()).unwrap();
-			
-			let b = sumoverpartitions::<false>(
-					guessable_words.as_ref(),
-					possible_answers.as_ref(), 
-					remaining_guesses-1,
-					guess, 
-					β
-				);
-			
-			if b < β {
-				β = b;
-				best_word = guess;
-				println!("{:?}: {}       ", guess, β);
-			}
-		}
-		
-		(best_word, β)
+pub fn best_word(state: &WordleState) -> (Option<WordleWord>, GuessTotal) {
+	let possible_answers = (0..NUM_WORDLE_ANSWERS)
+		.map(|i| WordleAnswer::from(i))
+		.filter(|&a| state.is_possible_answer(a))
+		.collect::<Box<[WordleAnswer]>>();
+	if possible_answers.is_empty() {panic!("no possible answers");}
+	
+	if state.hard_mode {
+		panic!("todo")
 	}
+	let guessable_words = (0..NUM_WORDLE_WORDS)
+		.map(|i| WordleWord::from(i))
+		.collect::<Box<[WordleWord]>>();
+	if guessable_words.is_empty() {panic!("no guessable words")}
+	
+	let mut β = GuessTotal::Infinity;
+	let mut best_word = None::<WordleWord>;
+	
+	let remaining_guesses = (WORDLE_NUM_GUESSES - state.current_entry) as u8;
+	
+	for guess in possible_answers.iter().map(|&x| x.into()).chain(guessable_words.iter().copied()) {
+		print!("{:?}: ... ({β})\r", guess);
+		std::io::Write::flush(&mut std::io::stdout()).unwrap();
+		
+		let b = sumoverpartitions::<false>(
+				guessable_words.as_ref(),
+				possible_answers.as_ref(), 
+				remaining_guesses-1,
+				guess, 
+				β
+			);
+		
+		if b < β {
+			β = b;
+			best_word = Some(guess);
+			println!("{:?}: {}       ", guess, β);
+		}
+	}
+	
+	(best_word, β)
 }
 
 

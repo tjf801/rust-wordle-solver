@@ -24,7 +24,7 @@ fn main() {
 			let mut guess = String::new();
 			print!("Guess: ");
 			std::io::Write::flush(&mut std::io::stdout()).unwrap();
-			std::io::stdin().read_line(&mut guess).unwrap();
+			std::io::stdin().read_line(&mut guess).expect("invalid guess");
 			(0..NUM_WORDLE_WORDS).map(WordleWord::from).find(|word| word.as_str() == guess.trim()).unwrap()
 		};
 		
@@ -33,7 +33,7 @@ fn main() {
 			let mut clue = String::new();
 			print!("Clue: ");
 			std::io::Write::flush(&mut std::io::stdout()).unwrap();
-			std::io::stdin().read_line(&mut clue).unwrap();
+			std::io::stdin().read_line(&mut clue).expect("invalid clue");
 			(0..NUM_WORDLE_WORDS).map(WordleClue::from).find(|c| format!("{c:?}") == clue.trim()).unwrap()
 		};
 		
@@ -42,7 +42,9 @@ fn main() {
 		println!("{:?}", best_word(&state));
 		
 		'options: loop {
-			println!("{}", state.share_text());
+			if state.current_entry > 0 {
+				println!("{}", state.share_text());
+			}
 			
 			match {
 				let mut option = String::new();
@@ -57,7 +59,48 @@ fn main() {
 					state.pop_entry();
 					continue 'options;
 				},
-				option => panic!("invalid option {}", option),
+				"eval" => {
+					let guess = {
+						let mut guess = String::new();
+						print!("Guess: ");
+						std::io::Write::flush(&mut std::io::stdout()).unwrap();
+						std::io::stdin().read_line(&mut guess).expect("invalid word");
+						(0..NUM_WORDLE_WORDS).map(WordleWord::from).find(|word| word.as_str() == guess.trim()).unwrap()
+					};
+					
+					let possible_answers = (0..NUM_WORDLE_ANSWERS)
+						.map(|i| WordleAnswer::from(i))
+						.filter(|&a| state.is_possible_answer(a))
+						.collect::<Box<[WordleAnswer]>>();
+					let guessable_words = (0..NUM_WORDLE_WORDS)
+						.map(|i| WordleWord::from(i))
+						.collect::<Box<[WordleWord]>>();
+					let remaining_guesses = (WORDLE_NUM_GUESSES - state.current_entry) as u8;
+					
+					let eval = sumoverpartitions::<false>(
+						guessable_words.as_ref(),
+						possible_answers.as_ref(), 
+						remaining_guesses-1,
+						guess, 
+						GuessTotal::Infinity
+					);
+					
+					println!("Eval of {guess:?}: {eval}");
+					
+					continue 'options;
+				},
+				"help" => {
+					println!("quit: quit the program");
+					println!("next: add your next guess and clue");
+					println!("back: undo the last guess");
+					println!("eval: evaluate a guess");
+					println!("help: show this help message");
+					continue 'options;
+				},
+				option => {
+					println!("invalid option: '{}'", option);
+					continue 'options;
+				}
 			}
 		}
 	}
