@@ -544,13 +544,13 @@ pub fn best_word(state: &WordleState) -> (Option<WordleWord>, GuessTotal) {
 		.collect::<Box<[WordleWord]>>();
 	if guessable_words.is_empty() {panic!("no guessable words")}
 	
-	let mut β = GuessTotal::Infinity;
+	let mut best_score = GuessTotal::Infinity;
 	let mut best_word = None::<WordleWord>;
 	
 	let remaining_guesses = (WORDLE_NUM_GUESSES - state.current_entry) as u8;
 	
 	for guess in possible_answers.iter().map(|&x| x.into()).chain(guessable_words.iter().copied()) {
-		print!("{:?}: ... ({β})\r", guess);
+		print!("{:?}: ... ({best_score})\r", guess);
 		std::io::Write::flush(&mut std::io::stdout()).unwrap();
 		
 		let b = sumoverpartitions::<false>(
@@ -558,17 +558,17 @@ pub fn best_word(state: &WordleState) -> (Option<WordleWord>, GuessTotal) {
 				possible_answers.as_ref(), 
 				remaining_guesses-1,
 				guess, 
-				β
+				best_score
 			);
 		
-		if b < β {
-			β = b;
+		if b < best_score {
+			best_score = b;
 			best_word = Some(guess);
-			println!("{:?}: {}       ", guess, β);
+			println!("{:?}: {}       ", guess, best_score);
 		}
 	}
 	
-	(best_word, β)
+	(best_word, best_score)
 }
 
 

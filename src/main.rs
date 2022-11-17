@@ -56,9 +56,10 @@ fn main() {
 				};
 				
 				state.push_entry(WordleEntry {guess: guess, clue: clue});
-				
-				println!("{:?}", best_word(&state));
 			},
+			"best" => {
+				println!("Best guess: {:?}", best_word(&state));
+			}
 			"back" => {
 				state.pop_entry();
 			},
@@ -108,12 +109,13 @@ fn main() {
 				println!("hard: enable hard mode");
 				println!("easy: disable hard mode");
 				println!("next: add your next guess and clue");
+				println!("best: show the best guess");
 				println!("back: undo the last guess");
 				println!("eval: evaluate a guess");
 				println!("help: show this help message");
 			},
 			option => {
-				println!("invalid option: '{}'", option);
+				println!("invalid option: '{}', use 'help' for help", option);
 			}
 		}
 	}
