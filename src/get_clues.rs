@@ -1,8 +1,10 @@
 use std::sync::OnceLock;
 
+use crate::constants::{WordleClue, NUM_WORDLE_ANSWERS, NUM_WORDLE_WORDS, WordleWord, WordleAnswer};
+
 /// TODO: this doesnt take into account that the word is exactly five letters, and so that seems like some missed optimization -- but also it doesnt really matter since this is only really done at compile time
 /// TODO: make this run at compile time instead of runtime - but rusts const evaluator shits itself when it has to evaluate this several million times and makes the already slow compilation completely unmanageable (it took at least 30 minutes, but afaik it could take 10 hours cuz i didnt let it finish)
-const fn get_clues_uncached(guess: &[u8], answer: &[u8]) -> WordleClue {
+pub /*const*/ fn get_clues_uncached(guess: &[u8], answer: &[u8]) -> WordleClue {
 	debug_assert!(guess.len() == 5);
     debug_assert!(answer.len() == 5);
 	

@@ -9,16 +9,16 @@
 #![feature(unchecked_math, const_inherent_unchecked_arith)]
 #![feature(rustc_attrs)]
 #![feature(const_trait_impl)]
-#![feature(once_cell)]
 
-// TODO: WHY IS RUSTS IMPORT SYSTEM SO WEIRD?????
-//       LITERALLY I AM DEFAULTING TO SHITTY C #INCLUDES I NEED JESUS
-// NOTE: after further reflection i have come to the conclusion that 
-//       i just do not understand rusts import system
-include!("constants.rs");
-include!("get_clues.rs");
-include!("total_guesses.rs");
-include!("wordle.rs");
+pub mod constants;
+pub mod get_clues;
+pub mod total_guesses;
+pub mod wordle;
+
+use constants::{NUM_WORDLE_CLUES, WordleClue, WordleWord, NUM_WORDLE_WORDS, WordleAnswer, NUM_WORDLE_ANSWERS};
+use get_clues::get_clues;
+use total_guesses::GuessTotal;
+use wordle::{WordleState, WORDLE_NUM_GUESSES};
 
 
 pub struct Partitions {
@@ -580,10 +580,10 @@ mod tests {
 	fn test_clue_repeated_letters() {
 		// stolen from 3blue1brown's wordle correction video because theyre good test cases for this behavior
 		// see first ~60 seconds of https://www.youtube.com/watch?v=fRed0Xmc2Wg
-		assert_eq!(get_clues_uncached(b"SPEED", b"ABIDE"), WordleClue::BBYBY);
-		assert_eq!(get_clues_uncached(b"SPEED", b"ERASE"), WordleClue::YBYYB);
-		assert_eq!(get_clues_uncached(b"SPEED", b"STEAL"), WordleClue::GBGBB);
-		assert_eq!(get_clues_uncached(b"SPEED", b"CREPE"), WordleClue::BYGYB);
+		assert_eq!(get_clues(WordleWord::SPEED, WordleAnswer::ABIDE), WordleClue::BBYBY);
+		assert_eq!(get_clues(WordleWord::SPEED, WordleAnswer::ERASE), WordleClue::YBYYB);
+		assert_eq!(get_clues(WordleWord::SPEED, WordleAnswer::STEAL), WordleClue::GBGBB);
+		assert_eq!(get_clues(WordleWord::SPEED, WordleAnswer::CREPE), WordleClue::BYGYB);
 	}
 	
     #[test]

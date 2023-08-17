@@ -3,17 +3,19 @@
 #![feature(const_inherent_unchecked_arith)]
 #![feature(rustc_attrs)]
 #![feature(const_trait_impl)]
-#![feature(once_cell)]
 
-mod lib;
-
-use crate::lib::*;
+use wordle_bot_fast_nolife::{
+	wordle::{self, WordleEntry, WORDLE_NUM_GUESSES},
+	constants::{NUM_WORDLE_WORDS, WordleWord, WordleClue, NUM_WORDLE_ANSWERS, WordleAnswer},
+	best_word, sumoverpartitions,
+	total_guesses::GuessTotal,
+};
 
 // TODO: use some more ideas from https://www.youtube.com/watch?v=doFowk4xj7Q
 
 
 fn main() {
-	let mut state = WordleState::new();
+	let mut state = wordle::WordleState::new();
 	
 	'main: loop {
 		if state.current_entry > 0 {

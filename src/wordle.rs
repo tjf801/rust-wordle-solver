@@ -1,3 +1,5 @@
+use crate::constants::{WordleClue, WordleAnswer, WordleWord};
+use crate::get_clues::get_clues;
 
 pub const WORDLE_NUM_GUESSES: usize = 6;
 
